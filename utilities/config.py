@@ -2,20 +2,23 @@ import configparser
 
 class Config(configparser.ConfigParser):
 
-    def __init__(self):
+    def __init__(self, config_path='/home/pi/bee_cam/config.ini'):
         super().__init__()
-        self.read('/home/pi/weather_test_scripts/config.ini')
+        self.read(config_path)
 
     def print(self):
         for section in self.sections():
             print(section)
             for k,v in self[section].items():
-                print(f'  {k} = {v}')
+                print(f'  {k} = {self.clean_value(v)}')
+    
+    def clean_value(self, value):
+        return value.split("#", 1)[0].strip()
 
     def dict(self):
         config_dict = {}
         for section in self.sections():
-            config_dict[section] = dict(self[section])
+            config_dict[section] = {k: self.clean_value(v) for k, v in self[section].items()}
         return config_dict
 
  

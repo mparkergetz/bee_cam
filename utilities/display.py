@@ -41,12 +41,18 @@ class Display:
         if not self.enabled:
             return
 
+        temp_str = f'Temp: {temperature:.1f} C' if temperature is not None else 'Temp: N/A'
+        humidity_str = f'Humid: {humidity:.1f}%' if humidity is not None else 'Humid: N/A'
+        pressure_str = f'Pres: {pressure:.1f} hPa' if pressure is not None else 'Pres: N/A'
+        wind_speed_str = f'Wind: {wind_speed:.1f} m/s' if wind_speed is not None else 'Wind: N/A'
+
+
         msg = [
-            time.strftime('%Y-%m-%d      %H:%M:%S'),
-            f'Temp: {temperature:.1f} C',
-            f'Humidity: {humidity:.1f} %',
-            f'Pressure: {pressure:.1f} hPa',
-            f'Wind: {wind_speed:.1f} m/s'
+            time.strftime('%Y-%m-%d | %H:%M:%S'),
+            temp_str,
+            humidity_str,
+            pressure_str,
+            wind_speed_str
         ]
         
         self.show_message(msg)
