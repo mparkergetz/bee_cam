@@ -6,7 +6,7 @@ import os
 import json
 
 HUB_IP = "192.168.2.1"
-TOPIC = "sensor/heartbeat"
+TOPIC = "heartbeat"
 SENSOR_NAME = "cam01"
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")

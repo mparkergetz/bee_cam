@@ -5,6 +5,7 @@ import logging
 from utilities.config import Config
 from utilities.display import Display
 from utilities.sensors import MultiSensor
+from .monitor_heartbeat import MonitorHeartbeat
 from time import sleep
 from datetime import datetime
 import threading
@@ -63,6 +64,9 @@ def run_server():
                     readings["wind_speed"]
                 )
             time.sleep(display_interval)
+
+    heartbeat_thread = threading.Thread(target=MonitorHeartbeat, daemon=True)
+    heartbeat_thread.start()
 
     sensor_thread = threading.Thread(target = sensor_data)
     sensor_thread.start()

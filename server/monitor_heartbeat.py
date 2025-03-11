@@ -1,10 +1,3 @@
-##########
-#
-# Stores sensor state in dictionary, may want to move to flag files for other scripts to access
-#
-##########
-
-
 import paho.mqtt.client as mqtt
 import sqlite3
 from datetime import datetime, timedelta
@@ -13,16 +6,11 @@ from threading import Thread
 import sys
 import logging
 import json
+from utilities.config import Config
 
-## REMOVE WHEN INTEGRATE WITH BEE_CAM:
-import  configparser
-config = configparser.ConfigParser()
-config.read('config.ini')
-
-# REPLACE WITH:
-# from .config import Config
-# config = Config()
-# unit_name =config['general']['name']
+config = Config()
+unit_name =config['general']['name']
+DB_PATH = config['communication']['db_location']
 
 TIMEOUT_THRESHOLD = config.getint('communication', 'timeout_threshold')
 TIME_DRIFT_THRESHOLD = config.getint('communication', 'time_drift_threshold')
@@ -32,19 +20,14 @@ startup_time = datetime.now()
 DEBUG_MODE = False
 
 HUB_IP = "192.168.2.1"
-TOPIC = "sensor/heartbeat"
-
-#TIMEOUT_THRESHOLD = 60
-#TIME_DRIFT_THRESHOLD = 600 
+TOPIC = "heartbeat"
 
 log_level = logging.DEBUG if DEBUG_MODE else logging.INFO
-logging.basicConfig(level=log_level, format="%(asctime)s - %(levelname)s - %(message)s", stream=sys.stdout)
+logging.basicConfig(filename='./logs/monitor_heartbeat.log', level=log_level, format="%(asctime)s - %(levelname)s - %(message)s")
 logging.info("Heartbeat monitor started")
 
-DB_PATH = config['communication']['db_location']
-print(DB_PATH)
-
 sensor_warnings = {}
+startup_time = datetime.now()
 
 def init_db():
     conn = sqlite3.connect(DB_PATH)
@@ -69,8 +52,6 @@ def init_db():
     
     conn.commit()
     conn.close()
-
-init_db()
 
 def log_heartbeat(sensor_name, receipt_time, sync_status, camera_on):
     """Log the heartbeat receipt time and update the sensor status."""
@@ -145,11 +126,13 @@ def check_sensor_status():
 
         time.sleep(10)
 
-client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
-client.on_message = on_message
-client.connect(HUB_IP, 1883, 60)
-client.subscribe(TOPIC)
+def MonitorHeartbeat():
+    init_db()
+    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+    client.on_message = on_message
+    client.connect(HUB_IP, 1883, 60)
+    client.subscribe(TOPIC)
 
-Thread(target=check_sensor_status, daemon=True).start()
+    Thread(target=check_sensor_status, daemon=True).start()
 
-client.loop_forever()
+    client.loop_forever()

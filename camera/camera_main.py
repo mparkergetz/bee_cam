@@ -19,32 +19,29 @@ def run_camera():
     lens_position = config['imaging'].getfloat('lens_position')
     img_count = 0
 
-
     # set main and sub output dirs
-    main_dir = "/home/pi/data/"
+    main_dir = "./data/"
     date_folder = str(datetime.now().strftime("%Y-%m-%d"))
     curr_date = os.path.join(main_dir, date_folder)
     os.makedirs(curr_date , exist_ok=True)
-    ## image data will save to a sub directory 'images'
-    path_image_dat = os.path.join(curr_date,'images')
 
+    path_image_dat = os.path.join(curr_date,'images') # image data will save to a sub directory 'images'
     os.makedirs(path_image_dat, exist_ok=True)
-    ## sensor data will save to current data directory
-    path_sensor_dat = curr_date 
+    path_sensor_dat = curr_date # sensor data will save to current data directory
 
-
-    # Initialize the sensors...
-    ## also initializes the csv file name timestamp
-    sensors = MultiSensor(path_sensor_dat)
+    sensors = MultiSensor(path_sensor_dat) # Initialize the sensors
 
     disp = Display()
     disp.display_msg('Initializing', img_count)
 
     # Configure logging
-    log_file = "/home/pi/bee_cam/log.txt"
+    os.makedirs("./logs", exist_ok=True)
+    log_file = "./logs/camera_main.log"
     logging.basicConfig(filename=log_file, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
     logging.info("###################### NEW RUN ##################################")
+
+    stop_event = threading.Event()
 
     try:
         camera = Picamera2()
@@ -54,27 +51,28 @@ def run_camera():
         camera.set_controls({"LensPosition": lens_position})
         camera.start()
         sleep(5)
-    except:
+    except Exception as e:
         disp.display_msg('Cam not connected', img_count)
-        logging.error("Camera init failed")
+        logging.error("Camera init failed: %s", str(e))
         sys.exit()
 
-
     os.chdir(curr_date)
-    print('Imaging')
     logging.info("Imaging...")
 
-    time_current = datetime.now()
     def sensor_data():
-        event.wait()
-        time_current_split = str(time_current.strftime("%Y%m%d_%H%M%S"))
-        sensors.add_data(name,time_current_split )
+        while not stop_event.is_set():
+            sensors.add_data(datetime.now())
+            stop_event.wait(2)
 
-    def capture_image():
+    def capture_image(time_current_split):
         event.wait()
-        time_current_split = str(time_current.strftime("%Y%m%d_%H%M%S"))
         camera.capture_file('images/'+name + '_' + time_current_split + '.jpg')
-        logging.info("Image acquired: %s", time_current_split)
+        logging.debug("Image acquired: %s", time_current_split)
+
+    sensor_thread = threading.Thread(target = sensor_data, daemon=True)
+    sensor_thread.start()
+
+    event = threading.Event()
 
     MAX_RETRIES = 3
     retry_count = 0
@@ -85,25 +83,17 @@ def run_camera():
         try:
             disp.display_msg('Imaging!', img_count)
 
-            event =  threading.Event()
             event.set()
-
-            sensor_thread = threading.Thread(target = sensor_data)
-            capture_thread = threading.Thread(target=capture_image)
-
             time_current = datetime.now()
             time_current_split = str(time_current.strftime("%Y%m%d_%H%M%S"))
-
-            sensor_thread.start()
+            
+            capture_thread = threading.Thread(target=capture_image, args=(time_current_split,))
             capture_thread.start()
 
             capture_thread.join(timeout=3) 
-            ## then will check if the sensor_thread is still alive and wait if needed 
-            sensor_thread.join() 
-
-            # If thread is still alive after 3 seconds, it's probably hung
-            if capture_thread.is_alive():
+            if capture_thread.is_alive(): # If thread is still alive after 3 seconds, it's probably hung
                 raise TimeoutError("Camera operation took too long!")
+            event.clear()
             
             img_count += 1
             retry_count = 0
@@ -113,15 +103,19 @@ def run_camera():
                 sensors.append_to_csv()
                 curr_time = time.time()
             sleep(.7)
+
         except KeyboardInterrupt:
-            if len(list(sensors.data_dict.values())[0]) != 0: 
-                # if list is not empty then add data...
+            stop_event.set()  # stop sensor thread
+            sensor_thread.join() 
+
+            if len(list(sensors.data_dict.values())[0]) != 0: # if list is not empty then add data
                 sensors.append_to_csv()
             
             disp.display_msg('Interrupted', img_count)
             sensors.sensors_deint()
             logging.info("KeyboardInterrupt")
             sys.exit()
+
         except TimeoutError:
             retry_count += 1
             disp.display_msg('Cam Timeout!', img_count)
@@ -134,9 +128,10 @@ def run_camera():
                 # Wait for a bit before attempting a retry
                 sleep(2)
                 continue
-        except:
+
+        except Exception as e:
             disp.display_msg('Error', img_count)
-            logging.exception("Error capturing image")
+            logging.exception("Error capturing image: %s", str(e))
             sys.exit()
 
 if __name__ == "__main__":
