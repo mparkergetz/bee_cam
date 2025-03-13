@@ -1,0 +1,13 @@
+[Unit]
+Description=Setting RTC time to system and WittyPi. Syncing with network if available.
+After=network-online.target systemd-timesyncd.service
+Wants=network-online.target
+Before=bee_cam_basic.service
+
+[Service]
+Type=simple
+ExecStart=/home/pi/time_init.sh
+RemainAfterExit=true
+
+[Install]
+WantedBy=multi-user.target
