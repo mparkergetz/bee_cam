@@ -5,6 +5,8 @@ import logging
 from utilities.config import Config
 from utilities.display import Display
 from utilities.sensors import MultiSensor
+from .send_heartbeat import SendCameraHeartbeat, SendCameraShutdown
+
 from picamera2 import Picamera2
 from time import sleep
 from datetime import datetime
@@ -14,13 +16,14 @@ import time
 def run_camera():
     config = Config()
 
-    name = config['general']['name']    
+    name = config['general']['name'] 
+
     size = (config['imaging'].getint('w'), config['imaging'].getint('h'))
     lens_position = config['imaging'].getfloat('lens_position')
     img_count = 0
 
     # set main and sub output dirs
-    main_dir = "./data/"
+    main_dir = os.path.abspath("./data")
     date_folder = str(datetime.now().strftime("%Y-%m-%d"))
     curr_date = os.path.join(main_dir, date_folder)
     os.makedirs(curr_date , exist_ok=True)
@@ -36,24 +39,28 @@ def run_camera():
 
     # Configure logging
     os.makedirs("./logs", exist_ok=True)
-    log_file = "./logs/camera_main.log"
+    log_file = os.path.abspath("./logs/camera_main.log")
     logging.basicConfig(filename=log_file, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
     logging.info("###################### NEW RUN ##################################")
 
-    stop_event = threading.Event()
+    MAX_RETRIES = 3
 
-    try:
-        camera = Picamera2()
-        cam_config = camera.create_still_configuration({'size': size})
-        camera.configure(cam_config)
-        camera.exposure_mode = 'sports'
-        camera.set_controls({"LensPosition": lens_position})
-        camera.start()
-        sleep(5)
-    except Exception as e:
-        disp.display_msg('Cam not connected', img_count)
-        logging.error("Camera init failed: %s", str(e))
+    for attempt in range(MAX_RETRIES):
+        try:
+            camera = Picamera2()
+            cam_config = camera.create_still_configuration({'size': size})
+            camera.configure(cam_config)
+            camera.exposure_mode = 'sports'
+            camera.set_controls({"LensPosition": lens_position})
+            camera.start()
+            sleep(5)
+            break
+        except Exception as e:
+            logging.error(f"Camera init attempt {attempt+1} failed: {e}")
+            sleep(2)
+    else:
+        disp.display_msg('Cam init failed', img_count)
         sys.exit()
 
     os.chdir(curr_date)
@@ -62,22 +69,41 @@ def run_camera():
     def sensor_data():
         while not stop_event.is_set():
             sensors.add_data(datetime.now())
-            stop_event.wait(2)
+            if stop_event.wait(2):
+                break
 
     def capture_image(time_current_split):
         event.wait()
         camera.capture_file('images/'+name + '_' + time_current_split + '.jpg')
         logging.debug("Image acquired: %s", time_current_split)
 
+    def cleanup():
+        stop_event.set()
+        if sensor_thread.is_alive():
+            sensor_thread.join()
+        if heartbeat_thread.is_alive():
+            heartbeat_thread.join()
+        if len(list(sensors.data_dict.values())[0]) != 0:
+            sensors.append_to_csv()
+        sensors.sensors_deint()
+        logging.info("Sensors deinit, Exiting.")
+        SendCameraShutdown()
+
+### SET UP THREADING
+    stop_event = threading.Event()
+
     sensor_thread = threading.Thread(target = sensor_data, daemon=True)
     sensor_thread.start()
+
+    heartbeat_thread = threading.Thread(target=SendCameraHeartbeat, args=(stop_event,), daemon=True)
+    heartbeat_thread.start()
 
     event = threading.Event()
 
     MAX_RETRIES = 3
     retry_count = 0
-
     curr_time = time.time()
+
     while True:
 
         try:
@@ -112,8 +138,8 @@ def run_camera():
                 sensors.append_to_csv()
             
             disp.display_msg('Interrupted', img_count)
-            sensors.sensors_deint()
             logging.info("KeyboardInterrupt")
+            cleanup()
             sys.exit()
 
         except TimeoutError:
@@ -125,13 +151,13 @@ def run_camera():
                 logging.error("Max retries reached. Exiting...")
                 sys.exit()
             else:
-                # Wait for a bit before attempting a retry
-                sleep(2)
+                sleep(2) # Wait for a bit before attempting a retry
                 continue
 
         except Exception as e:
             disp.display_msg('Error', img_count)
             logging.exception("Error capturing image: %s", str(e))
+            cleanup()
             sys.exit()
 
 if __name__ == "__main__":
