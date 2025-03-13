@@ -49,15 +49,6 @@ else
   fi
 fi
 
-#if [ "$time_sys" == "$time_rtc" ]; then
-#   echo "System date matches hardware clock date."
-
-#else
-#   echo "System date does not match hardware clock date."
-
-#fi
-
-
 # After Setting System and DS3231 RTC if not the same then looked at WittyPi RTC
 ## If WittyPi RTC not equal or within 1 second then reset...
 time_sys=$(date '+%Y-%m-%d %H:%M:%S')
@@ -67,9 +58,8 @@ time_witty=$(get_rtc_time) # uses wittypi utility function to get wittypi's rtc 
 echo "System Time vs System WittyPi: $time_sys and $time_rtc and $time_witty"
 sec_sys=$(date -d "$time_sys" +%s) # system time in seconds
 sec_witty=$(date -d "$time_witty" +%s) # wittypi rtc time in seconds
-### calculate the total seconds difference
+
 num_sec_witty=$((sec_sys - sec_witty))
-## Absolute Difference:
 if [ "$num_sec_witty" -lt 0 ]; then
   num_sec_witty=$((num_sec_witty * -1))
 fi

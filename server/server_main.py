@@ -17,13 +17,12 @@ def run_server():
     config = get_config.dict()
     name = config['general']['name']
 
-
-    MODULE_ROOT = os.path.dirname(os.path.abspath(__file__))
+    MODULE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     output_dir = os.path.abspath(config['general']['output_dir'])
 
-    date_folder = str(datetime.now().strftime("%Y%m%d"))
-    curr_date = os.path.join(output_dir, name, date_folder)
-    os.makedirs(curr_date, exist_ok=True)
+    curr_date = os.path.join(output_dir, name, str(datetime.now().strftime("%Y%m%d")))
+    name_dir = os.path.join(output_dir, name)
+    os.makedirs(name_dir, exist_ok=True)
 
     # Initialize the sensors
     shared_i2c = board.I2C()
@@ -35,6 +34,7 @@ def run_server():
 
     # Configure logging
     log_dir = os.path.join(MODULE_ROOT, "logs")
+    print(log_dir)
     os.makedirs(log_dir, exist_ok=True)
     log_file = os.path.join(log_dir, "server_main.log")
     logging.basicConfig(filename=log_file, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')

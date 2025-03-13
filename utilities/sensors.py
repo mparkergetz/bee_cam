@@ -243,14 +243,12 @@ if __name__ == "__main__":
             time.sleep(2)  # Sample interval
             time_current = datetime.now()
 
-            # Get sensor readings
             sensors.add_data(time_current)
             temp = sensors._temp_rh.get_data('temperature')
             humidity = sensors._temp_rh.get_data('relative_humidity')
             pressure = sensors._pres.get_data('pressure')
             wind_speed = sensors._ws.get_data()
 
-            # Display readings on OLED screen
             display.display_sensor_data(temp, humidity, pressure, wind_speed)
 
             # Save to CSV every 10 seconds

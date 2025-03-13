@@ -2,7 +2,7 @@
 Description=Setting RTC time to system and WittyPi. Syncing with network if available.
 After=network-online.target systemd-timesyncd.service
 Wants=network-online.target
-Before=bee_cam_basic.service
+Before=bee_cam.service
 
 [Service]
 Type=simple
