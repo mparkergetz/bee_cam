@@ -13,20 +13,17 @@ import time
 import board
 
 def run_server():
-    """
-    - Saves Sensor data to dictionary and after [30 seconds] appends to csv. 
-    - If you kill the script any data that has been saved into this dictionary will be appended to the csv file.
-    """
-
     get_config = Config()
     config = get_config.dict()
-
     name = config['general']['name']
-    output_dir = config['general']['output_dir']
+
+
+    MODULE_ROOT = os.path.dirname(os.path.abspath(__file__))
+    output_dir = os.path.abspath(config['general']['output_dir'])
 
     date_folder = str(datetime.now().strftime("%Y%m%d"))
     curr_date = os.path.join(output_dir, name, date_folder)
-    os.makedirs(os.path.join(output_dir, name), exist_ok=True)
+    os.makedirs(curr_date, exist_ok=True)
 
     # Initialize the sensors
     shared_i2c = board.I2C()
@@ -37,7 +34,9 @@ def run_server():
     disp.display_msg('Initializing')
 
     # Configure logging
-    log_file = "./logs/server_main.log"
+    log_dir = os.path.join(MODULE_ROOT, "logs")
+    os.makedirs(log_dir, exist_ok=True)
+    log_file = os.path.join(log_dir, "server_main.log")
     logging.basicConfig(filename=log_file, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
     logging.info("###################### NEW RUN ##################################")
