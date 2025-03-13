@@ -95,7 +95,7 @@ class WittyPi():
         for i in range(58,65):
 
             time_list.append(self.bcd_to_int(self._bus.read_byte_data(8,i)))
-        print(time_list)
+        #print(time_list)
         sec,min,hour,days,weekday,month,year= time_list
         curr_time = datetime(year = year+2000, month = month, day=days,hour = hour,minute=min,second=sec)
         return curr_time
@@ -116,8 +116,8 @@ class WittyPi():
         # Set the shutdown time for today (will be 8pm normally but 9:30pm if testing!)
         self._shutdown_datetime= curr_time.replace(hour=hr,minute=min, second=sec)# amount of time until shutdown (at least 3 minutes)
         # self._shutdown_datetime += timedelta(minutes=2) # added 2 minutes until shutdown
-        print(self._shutdown_datetime)
-        print(self._shutdown_datetime >= datetime.now())
+        #print(self._shutdown_datetime)
+        #print(self._shutdown_datetime >= datetime.now())
         return self._shutdown_datetime
     def get_shutdown_datetime_5min(self):
         """
@@ -128,8 +128,8 @@ class WittyPi():
         curr_time = self.get_current_time()
         self._time_to_shutdown = timedelta(minutes=5) # amount of time until shutdown (at least 3 minutes)
         self._shutdown_datetime = curr_time +self._time_to_shutdown # time that system will shutdown
-        print(self._shutdown_datetime)
-        print(self._shutdown_datetime >= datetime.now())
+        #print(self._shutdown_datetime)
+        #print(self._shutdown_datetime >= datetime.now())
         return self._shutdown_datetime
 
     def shutdown(self):
@@ -149,7 +149,7 @@ class WittyPi():
         shutdown_datetime = self.get_current_time()
         # Add a 5 minute buffer to the shutdown time of 7pm or (9:30pm if TEST)
         shutdown_datetime += timedelta(minutes=5)
-        print("shutdown time:",shutdown_datetime)
+        #print("shutdown time:",shutdown_datetime)
         # Add five minutes to the shutdown time just in case...
         shutdown_time_list = [shutdown_datetime.second,shutdown_datetime.minute ,shutdown_datetime.hour,shutdown_datetime.day,self.weekday_conv(datetime.weekday(shutdown_datetime))]
         shutdown_year = shutdown_datetime.year

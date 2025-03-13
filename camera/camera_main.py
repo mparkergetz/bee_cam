@@ -23,7 +23,8 @@ def run_camera():
     img_count = 0
 
     # set main and sub output dirs
-    main_dir = os.path.abspath("./data")
+    MODULE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    main_dir = os.path.join(MODULE_ROOT, "data")
     date_folder = str(datetime.now().strftime("%Y-%m-%d"))
     curr_date = os.path.join(main_dir, date_folder)
     os.makedirs(curr_date , exist_ok=True)
@@ -35,7 +36,7 @@ def run_camera():
     sensors = MultiSensor(path_sensor_dat) # Initialize the sensors
 
     disp = Display()
-    disp.display_msg('Initializing', img_count)
+    disp.display_msg('Initializing')
 
     # Configure logging
     os.makedirs("./logs", exist_ok=True)
@@ -138,6 +139,7 @@ def run_camera():
                 sensors.append_to_csv()
             
             disp.display_msg('Interrupted', img_count)
+            sensors.sensors_deinit()
             logging.info("KeyboardInterrupt")
             cleanup()
             sys.exit()

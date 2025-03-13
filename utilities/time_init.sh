@@ -1,130 +1,88 @@
 #!/bin/bash
-# Description: Attempts to connect to the network, synchronize system time with RTC, and adjust WittyPi RTC if needed.
+# Description: This script attempts to connect to the network over a 10 second period, if network connection can be established then will reestablish time to the hwclock and system time.  
+## If no network connection can be established then will check that hwclock and date times are equal. If that is the case then will set the wittyPi time based on that.
 
-# Load WittyPi Utilities
-util_dir="$HOME/wittypi"
-if [ ! -d "$util_dir" ]; then
-    echo "Error: WittyPi utility directory not found: $util_dir"
-    exit 1
-fi
+# call wittypi utilities
+util_dir="/home/pi/wittypi"
+echo "$util_dir"
 . "$util_dir/utilities.sh"
 
-# Check network connectivity
-check_network() {
-    if ping -q -c 1 -W 1 8.8.8.8 >/dev/null; then
-        echo "Network is up"
-        return 0
-    else
-        echo "Network is down"
-        return 1
-    fi
-}
+time_sys=$(date '+%Y-%m-%d %H:%M:%S')
+time_rtc=$(sudo hwclock -r)
+time_rtc=$(echo "$time_rtc" | cut -d'-' -f1-3)
 
-# Safely get system time
-get_system_time() {
-    local sys_time
-    sys_time=$(date '+%Y-%m-%d %H:%M:%S')
-    if [ -z "$sys_time" ]; then
-        echo "Error: Failed to retrieve system time."
-        exit 1
-    fi
-    echo "$sys_time"
-}
+echo "System Time vs System RTC: $time_sys and $time_rtc"
 
-# Safely get RTC time
-get_rtc_time_safe() {
-    local rtc_time
-    rtc_time=$(sudo hwclock -r 2>/dev/null)
-    if [ -z "$rtc_time" ]; then
-        echo "Error: Failed to retrieve RTC time."
-        exit 1
-    fi
-    echo "$rtc_time"
-}
+sec_sys=$(date -d "$time_sys" +%s)
+sec_rtc=$(date -d "$time_rtc" +%s)
 
-# Safely get WittyPi RTC time
-get_witty_time_safe() {
-    local witty_time
-    witty_time=$(get_rtc_time 2>/dev/null)
-    if [ -z "$witty_time" ]; then
-        echo "Error: Failed to retrieve WittyPi RTC time."
-        exit 1
-    fi
-    echo "$witty_time"
-}
+num_sec=$((sec_sys - sec_rtc))
 
-# Get system, RTC, and WittyPi times
-time_sys=$(get_system_time)
-time_rtc=$(get_rtc_time_safe)
-time_witty=$(get_witty_time_safe)
-
-#echo "DEBUG: System Time = '$time_sys'"
-#echo "DEBUG: RTC Time = '$time_rtc'"
-#echo "DEBUG: WittyPi Time = '$witty_time'"
-
-# Convert times to epoch seconds
-sec_sys=$(date -d "$time_sys" +%s 2>/dev/null)
-sec_rtc=$(date -d "$time_rtc" +%s 2>/dev/null)
-sec_witty=$(date -d "$time_witty" +%s 2>/dev/null)
-
-if [ -z "$sec_sys" ] || [ -z "$sec_rtc" ] || [ -z "$sec_witty" ]; then
-    echo "Error: Failed to convert time to seconds."
-    exit 1
+# Absolute Difference:
+if [ "$num_sec" -lt 0 ]; then
+  num_sec=$((num_sec * -1))
 fi
 
-# Calculate absolute differences
-num_sec=$((sec_sys > sec_rtc ? sec_sys - sec_rtc : sec_rtc - sec_sys))
-num_sec_witty=$((sec_sys > sec_witty ? sec_sys - sec_witty : sec_witty - sec_sys))
+# Check if can connect to network within 1 second
+if ping -q -c 1 -W 1 8.8.8.8 >/dev/null; then
+   echo "IPv4 is up"
+   # Check if the System and DS3231 RTC (hwclock) are off by more than 1 second
+   if [ "$num_sec" -ge 1 ]; then
+      echo "System and DS3231 are $num_sec seconds off"
+      # Now apply the systemctl restart systemd-timesyncd
+      echo "Current RTC: $(sudo hwclock -r) | Current Sys: $(date '+%Y-%m-%d %H:%M:%S')"
+      echo "RESTARTING..TIME SYNC..."
+      sudo systemctl restart systemd-timesyncd
+      echo "Current RTC: $(sudo hwclock -r) | Current Sys: $(date '+%Y-%m-%d %H:%M:%S')"
+   
+   else
+      echo "Num of seconds over: $num_sec"
 
-# Sync time based on network availability
-if check_network; then
-    echo "Network detected, checking RTC sync..."
-    if [ "$num_sec" -ge 1 ]; then
-        echo "System and RTC are out of sync by $num_sec seconds. Restarting time sync service..."
-        if sudo systemctl restart systemd-timesyncd; then
-            echo "Time synchronization restarted successfully."
-        else
-            echo "Error: Failed to restart time synchronization service."
-            exit 1
-        fi
-    else
-        echo "System and RTC are synchronized."
-    fi
-
-    # Sync System Time to WittyPi RTC
-    echo "Syncing system time to WittyPi RTC..."
-    if system_to_rtc; then
-        echo "Successfully updated WittyPi RTC with system time."
-    else
-        echo "Error: Failed to update WittyPi RTC."
-        exit 1
-    fi
-
+   fi
 
 else
-    echo "No network detected, checking system vs. WittyPi RTC..."
-
-    # Set Hardware Clock (hwclock) to System Time
-    if sudo hwclock --hctosys; then
-        echo "System time updated from hwclock."
-    else
-        echo "Error: Failed to update hwclock from system time."
-        exit 1
-    fi
-
-    if [ "$num_sec_witty" -ge 1 ]; then
-        echo "System and WittyPi RTC are out of sync by $num_sec_witty seconds."
-        echo "Setting system time to WittyPi RTC..."
-        if system_to_rtc; then
-            echo "System time successfully set to WittyPi RTC."
-        else
-            echo "Error: Failed to set system time to WittyPi RTC."
-            exit 1
-        fi
-    else
-        echo "System and WittyPi RTC are already synchronized."
-    fi
+  echo "IPv4 is down"
+  if [ "$num_sec" -ge 1 ]; then
+     echo "System and DS3231 Require Calibration"
+  else
+     echo "System and DS3231 are synced"
+  fi
 fi
 
-echo "Time synchronization check completed successfully."
+#if [ "$time_sys" == "$time_rtc" ]; then
+#   echo "System date matches hardware clock date."
 
+#else
+#   echo "System date does not match hardware clock date."
+
+#fi
+
+
+# After Setting System and DS3231 RTC if not the same then looked at WittyPi RTC
+## If WittyPi RTC not equal or within 1 second then reset...
+time_sys=$(date '+%Y-%m-%d %H:%M:%S')
+time_rtc=$(sudo hwclock -r)
+time_rtc=$(echo "$time_rtc" | cut -d'-' -f1-3)
+time_witty=$(get_rtc_time) # uses wittypi utility function to get wittypi's rtc time
+echo "System Time vs System WittyPi: $time_sys and $time_rtc and $time_witty"
+sec_sys=$(date -d "$time_sys" +%s) # system time in seconds
+sec_witty=$(date -d "$time_witty" +%s) # wittypi rtc time in seconds
+### calculate the total seconds difference
+num_sec_witty=$((sec_sys - sec_witty))
+## Absolute Difference:
+if [ "$num_sec_witty" -lt 0 ]; then
+  num_sec_witty=$((num_sec_witty * -1))
+fi
+
+## If the wittypi time and the system time are off then set system to wittypi
+if [ "$num_sec_witty" -ge 1 ]; then
+   echo "System and WittyPi are $num_sec_witty seconds off"
+   # Now apply the systemctl restart systemd-timesyncd
+   echo "Current Sys: $(date '+%Y-%m-%d %H:%M:%S') | Current Witty time: $(get_rtc_time)"
+   echo "Set System to WittyPi RTC"
+   system_to_rtc
+   echo "Current Sys: $(date '+%Y-%m-%d %H:%M:%S') | Current Witty time: $(get_rtc_time)"
+   
+else
+   echo "Num of seconds over: $num_sec_witty"
+fi
