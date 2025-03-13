@@ -118,6 +118,7 @@ def check_sensor_status():
 
             if gap > TIMEOUT_THRESHOLD and sync_status == "good" and sensor_warnings.get(sensor_name) != "down":
                 logging.warning(f"WARNING: {sensor_name} is DOWN! Last heartbeat received at {last_seen}.")
+                log_heartbeat(sensor_name, last_seen, sync_status='DOWN', camera_on=0)
                 sensor_warnings[sensor_name] = "down"
 
             elif gap <= TIMEOUT_THRESHOLD and sensor_warnings.get(sensor_name) == "down":
