@@ -11,10 +11,6 @@ import board
 from csv import DictWriter
 
 from smbus2 import SMBus
-import adafruit_sht31d # temp humidity
-import adafruit_bmp3xx # pressure
-import adafruit_mcp3421.mcp3421 as ADC # anemometer adc
-from adafruit_mcp3421.analog_in import AnalogIn
 
 from PIL import Image, ImageDraw, ImageFont
 import adafruit_ssd1306 # display
@@ -25,6 +21,12 @@ from utilities.wittypi import WittyPi
 
 config = Config()
 name = config['general']['name']  
+
+if config['general']['mode'] == 'server':
+    import adafruit_sht31d # temp humidity
+    import adafruit_bmp3xx # pressure
+    import adafruit_mcp3421.mcp3421 as ADC # anemometer adc
+    from adafruit_mcp3421.analog_in import AnalogIn
 
 class Sensor:
     data_dict = {"name": [], "time": []}

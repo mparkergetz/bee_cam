@@ -58,12 +58,18 @@ class Display:
         self.show_message(msg)
 
 
-    def display_msg(self, status):
+    def display_msg(self, status, img_count=None):
         if not self.enabled:
             return
 
-        msg = [time.strftime('%H:%M:%S'),
+        if img_count is None:
+            msg = [time.strftime('%H:%M:%S'),
                 f'{status}',
+                f'IP: {self.ip}']
+        else:
+            msg = [time.strftime('%H:%M:%S'),
+                f'{status}',
+                f'Image count: {img_count}',
                 f'IP: {self.ip}']
 
         self.show_message(msg)
