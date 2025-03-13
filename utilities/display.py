@@ -63,11 +63,11 @@ class Display:
             return
 
         if img_count is None:
-            msg = [time.strftime('%H:%M:%S'),
+            msg = [time.strftime('%Y-%m-%d | %H:%M:%S'),
                 f'{status}',
                 f'IP: {self.ip}']
         else:
-            msg = [time.strftime('%H:%M:%S'),
+            msg = [time.strftime('%Y-%m-%d | %H:%M:%S'),
                 f'{status}',
                 f'Image count: {img_count}',
                 f'IP: {self.ip}']
@@ -78,7 +78,7 @@ class Display:
         if not self.enabled:
             return
 
-        msg = [time.strftime('%H:%M:%S'),
+        msg = [time.strftime('%Y-%m-%d | %H:%M:%S'),
                 f'Temp: {temp} C   Humid: {humid}%',
                 f'Pres: {pres} kPa, Wind: {wind} m/s',
                 f'IP: {self.ip}']
