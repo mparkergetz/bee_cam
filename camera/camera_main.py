@@ -6,6 +6,7 @@ from utilities.config import Config
 from utilities.display import Display
 from utilities.sensors import MultiSensor
 from .send_heartbeat import SendCameraHeartbeat, SendCameraShutdown
+import board
 
 from picamera2 import Picamera2
 from time import sleep
@@ -33,7 +34,8 @@ def run_camera():
     os.makedirs(path_image_dat, exist_ok=True)
     path_sensor_dat = curr_date # sensor data will save to current data directory
 
-    sensors = MultiSensor(path_sensor_dat) # Initialize the sensors
+    shared_i2c = board.I2C()
+    sensors = MultiSensor(path_sensor_dat, i2c=shared_i2c) # Initialize the sensors
 
     disp = Display()
     disp.display_msg('Initializing')
@@ -86,7 +88,7 @@ def run_camera():
             heartbeat_thread.join()
         if len(list(sensors.data_dict.values())[0]) != 0:
             sensors.append_to_csv()
-        sensors.sensors_deint()
+        sensors.sensors_deinit()
         logging.info("Sensors deinit, Exiting.")
         SendCameraShutdown()
 
@@ -139,7 +141,6 @@ def run_camera():
                 sensors.append_to_csv()
             
             disp.display_msg('Interrupted', img_count)
-            sensors.sensors_deinit()
             logging.info("KeyboardInterrupt")
             cleanup()
             sys.exit()

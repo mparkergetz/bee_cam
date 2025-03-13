@@ -20,9 +20,10 @@ from utilities.config import Config
 from utilities.wittypi import WittyPi
 
 config = Config()
-name = config['general']['name']  
+name = config['general']['name']
+mode = config['general']['mode']
 
-if config['general']['mode'] == 'server':
+if mode == 'server':
     import adafruit_sht31d # temp humidity
     import adafruit_bmp3xx # pressure
     import adafruit_mcp3421.mcp3421 as ADC # anemometer adc
@@ -70,7 +71,8 @@ class Sensor:
         print(d)
 
     def sensor_deinit(self):
-        self.i2c.deinit() 
+        if self.i2c is not None:
+                self.i2c.deinit() 
 
 class TempRHSensor(Sensor):
     def __init__(self, i2c=None):
@@ -153,9 +155,13 @@ class MultiSensor(Sensor):
         """
         super().__init__(i2c=i2c)
         self.unit_name = name
-        self._temp_rh = TempRHSensor(i2c=i2c)
-        self._pres = PresSensor(i2c=i2c)
-        self._ws = WindSensor(i2c=i2c)
+
+        if mode == 'server':
+            self._temp_rh = TempRHSensor(i2c=i2c)
+            self._pres = PresSensor(i2c=i2c)
+            self._ws = WindSensor(i2c=i2c)
+        #elif mode == 'camera':
+            
 
         with WittyPi() as witty:
             self._shutdown_dt = witty.get_shutdown_datetime() 
@@ -182,9 +188,10 @@ class MultiSensor(Sensor):
             self.data_dict["name"].append(self.unit_name)
 
             ## Add Temperature and Humidity
-            self.latest_readings["temperature"], self.latest_readings["relative_humidity"] = self._temp_rh.temp_rh_data()
-            self.latest_readings["pressure"] = self._pres.pressure_data()
-            self.latest_readings["wind_speed"] = self._ws.add_data()
+            if mode == 'server':
+                self.latest_readings["temperature"], self.latest_readings["relative_humidity"] = self._temp_rh.temp_rh_data()
+                self.latest_readings["pressure"] = self._pres.pressure_data()
+                self.latest_readings["wind_speed"] = self._ws.add_data()
         else:
             raise ShutdownTime
 
@@ -217,10 +224,9 @@ class MultiSensor(Sensor):
 
     def sensors_deinit(self):
         print("Deinitializing I2C Bus")
-        self._temp_rh.sensor_deinit()
-        self._pres.sensor_deinit()
-        self._ws.sensor_deinit()
-        # self._disp.sensor_deinit()
+        if hasattr(self, '_temp_rh'): self._temp_rh.sensor_deinit()
+        if hasattr(self, '_pres'): self._pres.sensor_deinit()
+        if hasattr(self, '_ws'): self._ws.sensor_deinit()
         print("Finished Denitializing I2C Bus...Reading for Reboot")
 
 if __name__ == "__main__":
