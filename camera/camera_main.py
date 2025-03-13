@@ -16,7 +16,6 @@ import time
 
 def run_camera():
     config = Config()
-
     name = config['general']['name'] 
 
     size = (config['imaging'].getint('w'), config['imaging'].getint('h'))
@@ -26,23 +25,24 @@ def run_camera():
     # set main and sub output dirs
     MODULE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     main_dir = os.path.join(MODULE_ROOT, "data")
+    os.makedirs(main_dir, exist_ok=True)
     date_folder = str(datetime.now().strftime("%Y-%m-%d"))
     curr_date = os.path.join(main_dir, date_folder)
     os.makedirs(curr_date , exist_ok=True)
 
     path_image_dat = os.path.join(curr_date,'images') # image data will save to a sub directory 'images'
     os.makedirs(path_image_dat, exist_ok=True)
-    path_sensor_dat = curr_date # sensor data will save to current data directory
-
+    
     shared_i2c = board.I2C()
-    sensors = MultiSensor(path_sensor_dat, i2c=shared_i2c) # Initialize the sensors
+    sensors = MultiSensor(curr_date, i2c=shared_i2c) # Initialize the sensors
 
     disp = Display()
     disp.display_msg('Initializing')
 
     # Configure logging
-    os.makedirs("./logs", exist_ok=True)
-    log_file = os.path.abspath("./logs/camera_main.log")
+    log_dir = os.path.join(MODULE_ROOT, "logs")
+    os.makedirs(log_dir, exist_ok=True)
+    log_file = os.path.join(log_dir, "camera_main.log")
     logging.basicConfig(filename=log_file, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
     logging.info("###################### NEW RUN ##################################")
