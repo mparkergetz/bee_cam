@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DB_PATH="./heartbeats.db"
+DB_PATH="../logs/heartbeats.db"
 
 echo "===== Last 10 Heartbeats ====="
 sqlite3 "$DB_PATH" <<EOF
