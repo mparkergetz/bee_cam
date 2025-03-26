@@ -276,12 +276,12 @@ class MultiSensor(Sensor):
             print(f"An error occurred while inserting into DB: {e}")
 
     def sensors_deinit(self):
-        print("Deinitializing I2C Bus")
+        #print("Deinitializing I2C Bus")
         if hasattr(self, '_temp_rh'): self._temp_rh.sensor_deinit()
         if hasattr(self, '_pres'): self._pres.sensor_deinit()
         if hasattr(self, '_ws'): self._ws.sensor_deinit()
         self.sql_conn.close()
-        print("Finished Denit")
+        print("Deinitialized")
 
 if __name__ == "__main__":
     print("Starting Sensor Monitoring...")

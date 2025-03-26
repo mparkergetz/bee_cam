@@ -2,77 +2,153 @@ import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-import paho.mqtt.client as mqtt
-import sqlite3
 import time
 import json
 import threading
+import sqlite3
+import paho.mqtt.client as mqtt
 from utilities.config import Config
 
+class MQTTRelay:
+    def __init__(self):
+        self.config = Config()
+        self.unit_name = self.config['general']['name']
 
-config = Config()
-unit_name =config['general']['name']
+        self.package_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+        mqtt_db = self.config['communication']['mqtt_db']
+        weather_db = self.config['communication']['weather_db']
+        self.weather_db_path = os.path.join(self.package_root, weather_db)
+        self.heartbeat_db = os.path.join(self.package_root, mqtt_db)
+        
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        self.cert_path = os.path.join(script_dir, "mycert.crt")
+        self.remote_broker = "r00f7910.ala.us-east-1.emqxsl.com"
+        self.remote_port = 8883
+        self.mqtt_user = "user1"
+        self.mqtt_pass = "user1pasS"
 
-package_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-db_relative_path = config['communication']['weather_db']
-DB_PATH = os.path.join(package_root, db_relative_path)
+        self.relay_interval = 1
 
-REMOTE_BROKER = "r00f7910.ala.us-east-1.emqxsl.com"
-REMOTE_PORT = 8883
-MQTT_USER = "user1"
-MQTT_PASS = "user1pasS"
-CERT_PATH = "/home/pi/bee_cam/server/mycert.crt"
+        self.conn = sqlite3.connect(self.heartbeat_db, check_same_thread=False)
+        self.cur = self.conn.cursor()
+        self._setup_db()
 
-conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-cur = conn.cursor()
-cur.execute("""
-CREATE TABLE IF NOT EXISTS messages (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    topic TEXT,
-    payload TEXT,
-    qos INTEGER,
-    sent INTEGER DEFAULT 0
-)
-""")
-conn.commit()
+        self.weather_conn = sqlite3.connect(self.weather_db_path, check_same_thread=False)
+        self.weather_cursor = self.weather_conn.cursor()
 
-def store_message(topic, payload, qos):
-    cur.execute("INSERT INTO messages (topic, payload, qos, sent) VALUES (?, ?, ?, 0)", 
-                (topic, payload, qos))
-    conn.commit()
+        self.remote_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+        self.remote_client.username_pw_set(self.mqtt_user, self.mqtt_pass)
+        self.remote_client.tls_set(ca_certs=self.cert_path)
 
-def mark_sent(msg_id):
-    cur.execute("UPDATE messages SET sent = 1 WHERE id = ?", (msg_id,))
-    conn.commit()
+    def _setup_db(self):
+        self.cur.execute("""
+        CREATE TABLE IF NOT EXISTS messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            topic TEXT,
+            payload TEXT,
+            qos INTEGER,
+            sent INTEGER DEFAULT 0
+        )
+        """)
+        self.conn.commit()
 
-def resend_unsent():
-    while True:
-        try:
-            cur.execute("SELECT id, topic, payload, qos FROM messages WHERE sent = 0")
-            rows = cur.fetchall()
-            for row in rows:
-                msg_id, topic, payload, qos = row
-                result = remote_client.publish(topic, payload, qos=qos)
-                if result.rc == mqtt.MQTT_ERR_SUCCESS:
-                    mark_sent(msg_id)
-        except Exception as e:
-            pass  # Keep trying
-        time.sleep(RELAY_INTERVAL)
+    def store_message(self, topic, payload, qos):
+        self.cur.execute("INSERT INTO messages (topic, payload, qos, sent) VALUES (?, ?, ?, 0)",
+                         (topic, payload, qos))
+        self.conn.commit()
 
-def test_connection():
-    test_topic = f"{unit_name}/status/test"
-    test_payload = json.dumps({"status": "online", "timestamp": int(time.time())})
-    result = remote_client.publish(test_topic, test_payload, qos=1)
-    return result.rc == mqtt.MQTT_ERR_SUCCESS
+    def mark_sent(self, msg_id):
+        self.cur.execute("UPDATE messages SET sent = 1 WHERE id = ?", (msg_id,))
+        self.conn.commit()
+
+    def test_connection(self):
+        topic = f"{self.unit_name}/status/test"
+        payload = json.dumps({"status": "online", "timestamp": int(time.time())})
+        result = self.remote_client.publish(topic, payload, qos=1)
+        return result.rc == mqtt.MQTT_ERR_SUCCESS
+
+    def resend_unsent(self):
+        while True:
+            try:
+                self.cur.execute("SELECT id, topic, payload, qos FROM messages WHERE sent = 0")
+                rows = self.cur.fetchall()
+                for msg_id, topic, payload, qos in rows:
+                    result = self.remote_client.publish(topic, payload, qos=qos)
+                    if result.rc == mqtt.MQTT_ERR_SUCCESS:
+                        self.mark_sent(msg_id)
+            except Exception:
+                pass
+            time.sleep(self.relay_interval)
+
+    def send_weather_data(self):
+        while True:
+            try:
+                self.weather_cursor.execute("SELECT id, time, temperature, relative_humidity, pressure, wind_speed FROM weather_data WHERE sent = 0")
+                rows = self.weather_cursor.fetchall()
+                for row in rows:
+                    id_, ts, temp, hum, pres, wind = row
+                    topic = f"{self.unit_name}/weather"
+                    payload = json.dumps({
+                        "time": ts,
+                        "temp": temp,
+                        "humid": hum,
+                        "pres": pres,
+                        "wind": wind
+                    })
+                    self.store_message(topic, payload, qos=1)
+                    self.cur.execute("UPDATE weather_data SET sent = 1 WHERE id = ?", (id_,))
+                self.conn.commit()
+            except Exception:
+                pass
+            time.sleep(10)
+
+    def send_camera_status(self):
+        hb_conn = sqlite3.connect(self.heartbeat_db)
+        hb_cursor = hb_conn.cursor()
+        last_seen_cache = {}
+
+        while True:
+            try:
+
+                hb_cursor.execute("SELECT camera_name, last_seen, sync_status, camera_on FROM camera_status")
+                rows = hb_cursor.fetchall()
+                for row in rows:
+                    camera_name, last_seen, sync_status, camera_on = row
+                    last_payload = last_seen_cache.get(camera_name)
+                    current_payload = (last_seen, sync_status, camera_on)
+
+                    if current_payload != last_payload:
+                        topic = f"{self.unit_name}/status/camera/{camera_name}"
+                        payload = json.dumps({
+                            "camera": camera_name,
+                            "last_seen": last_seen,
+                            "sync_status": sync_status,
+                            "camera_on": bool(camera_on)
+                        })
+                        self.store_message(topic, payload, qos=1)
+                        last_seen_cache[camera_name] = current_payload
+            except Exception:
+                pass
+            time.sleep(10)
+
+    def start(self):
+        self.remote_client.connect_async(self.remote_broker, self.remote_port)
+        self.remote_client.loop_start()
+
+        time.sleep(2)
+
+        if not self.test_connection():
+            print("MQTT connection test failed.")
+            return
+
+        threading.Thread(target=self.resend_unsent, daemon=True).start()
+        threading.Thread(target=self.send_weather_data, daemon=True).start()
+        threading.Thread(target=self.send_camera_status, daemon=True).start()
+
+        while True:
+            time.sleep(1)
+
 
 if __name__ == "__main__":
-    remote_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
-    remote_client.username_pw_set(MQTT_USER, MQTT_PASS)
-    remote_client.tls_set(ca_certs=CERT_PATH)
-    remote_client.connect_async(REMOTE_BROKER, REMOTE_PORT)
-    remote_client.loop_start()
-
-    while True:
-        test_connection()
-        time.sleep(1)
-
+    relay = MQTTRelay()
+    relay.start()

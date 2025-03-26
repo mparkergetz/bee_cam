@@ -34,7 +34,7 @@ def run_server():
 
     # Configure logging
     log_dir = os.path.join(MODULE_ROOT, "logs")
-    print(log_dir)
+    #print(log_dir)
     os.makedirs(log_dir, exist_ok=True)
     log_file = os.path.join(log_dir, "server_main.log")
     logging.basicConfig(filename=log_file, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -88,7 +88,7 @@ def run_server():
 
             if (time.monotonic() - curr_time) >= 10:
                 #print(psutil.cpu_percent(interval=1), "% CPU Usage")
-                sensors.append_to_csv()
+                sensors.insert_into_db()
                 curr_time = time.monotonic()
             
             time.sleep(0.1)
@@ -99,7 +99,7 @@ def run_server():
         sensor_thread.join()
         display_thread.join()
         if len(list(sensors.data_dict.values())[0]) != 0: 
-            sensors.append_to_csv()
+            sensors.insert_into_db()
         
         
         logging.info("KeyboardInterrupt")

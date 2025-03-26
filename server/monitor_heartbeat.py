@@ -89,7 +89,7 @@ def on_message(client, userdata, msg):
     camera_name = message["name"]
     timestamp_str = message["timestamp"]
     camera_on = int(message["cam_on"])
-    logging.info(f'{camera_on}, {type(camera_on)}')
+    logging.debug(f'{camera_on}, {type(camera_on)}')
     cam_time = datetime.fromisoformat(timestamp_str)
     receipt_time = datetime.now()
 
