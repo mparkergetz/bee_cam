@@ -96,11 +96,11 @@ class MQTTRelay:
                         "wind": wind
                     })
                     self.store_message(topic, payload, qos=1)
-                    self.cur.execute("UPDATE weather_data SET sent = 1 WHERE id = ?", (id_,))
-                self.conn.commit()
+                    self.weather_cursor.execute("UPDATE weather_data SET sent = 1 WHERE id = ?", (id_,))
+                self.weather_conn.commit()
             except Exception:
                 pass
-            time.sleep(10)
+            time.sleep(60)
 
     def send_camera_status(self):
         hb_conn = sqlite3.connect(self.heartbeat_db)
@@ -129,7 +129,7 @@ class MQTTRelay:
                         last_seen_cache[camera_name] = current_payload
             except Exception:
                 pass
-            time.sleep(10)
+            time.sleep(600)
 
     def start(self):
         self.remote_client.connect_async(self.remote_broker, self.remote_port)

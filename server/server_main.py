@@ -16,17 +16,18 @@ def run_server():
     get_config = Config()
     config = get_config.dict()
     name = config['general']['name']
+    #sensor_int = get_config.getint('communication', 'sensor_int')
 
     MODULE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    output_dir = os.path.abspath(config['general']['output_dir'])
+    #output_dir = os.path.abspath(config['general']['output_dir'])
 
-    curr_date = os.path.join(output_dir, name, str(datetime.now().strftime("%Y%m%d")))
-    name_dir = os.path.join(output_dir, name)
-    os.makedirs(name_dir, exist_ok=True)
+    # curr_date = os.path.join(output_dir, name, str(datetime.now().strftime("%Y%m%d")))
+    # name_dir = os.path.join(output_dir, name)
+    # os.makedirs(name_dir, exist_ok=True)
 
     # Initialize the sensors
     shared_i2c = board.I2C()
-    sensors = MultiSensor(curr_date, i2c=shared_i2c)
+    sensors = MultiSensor(i2c=shared_i2c)
 
     # Initialize the display
     disp = Display(i2c=shared_i2c)
@@ -49,7 +50,7 @@ def run_server():
         while not stop_event.is_set():
             time_current = datetime.now()
             sensors.add_data(time_current)
-            time.sleep(2)
+            time.sleep(120)
 
     def update_display():
         display_interval = 1
@@ -86,7 +87,7 @@ def run_server():
                 readings["wind_speed"]
             )
 
-            if (time.monotonic() - curr_time) >= 10:
+            if (time.monotonic() - curr_time) >= 120:
                 #print(psutil.cpu_percent(interval=1), "% CPU Usage")
                 sensors.insert_into_db()
                 curr_time = time.monotonic()

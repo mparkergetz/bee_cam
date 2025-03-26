@@ -155,7 +155,7 @@ class MultiSensor(Sensor):
     """
     Class that holds the various different sensors for acquiring data
     """
-    def __init__(self, db_path, i2c=None):
+    def __init__(self, db_path=db_path, i2c=None):
         """
         Initialize the different sensor classes
         """
