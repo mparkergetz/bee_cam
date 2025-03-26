@@ -2,6 +2,7 @@ from datetime import datetime,timedelta
 import os
 import sys
 import time
+import sqlite3
 
 import socket
 import fcntl
@@ -20,8 +21,13 @@ from utilities.config import Config
 from utilities.wittypi import WittyPi
 
 config = Config()
+package_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+
 name = config['general']['name']
 mode = config['general']['mode']
+
+db_relative_path = config['communication']['weather_db']
+db_path = os.path.join(package_root, db_relative_path)
 
 if mode == 'server':
     import adafruit_sht31d # temp humidity
@@ -149,7 +155,7 @@ class MultiSensor(Sensor):
     """
     Class that holds the various different sensors for acquiring data
     """
-    def __init__(self, path_sensors, i2c=None):
+    def __init__(self, db_path, i2c=None):
         """
         Initialize the different sensor classes
         """
@@ -160,6 +166,23 @@ class MultiSensor(Sensor):
             self._temp_rh = TempRHSensor(i2c=i2c)
             self._pres = PresSensor(i2c=i2c)
             self._ws = WindSensor(i2c=i2c)
+
+            self.sql_conn = sqlite3.connect(db_path, check_same_thread=False)
+            self.sql_cursor = self.sql_conn.cursor()
+            self.sql_cursor.execute("""
+                CREATE TABLE IF NOT EXISTS weather_data (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT,
+                    time TEXT,
+                    temperature REAL,
+                    relative_humidity REAL,
+                    pressure REAL,
+                    wind_speed REAL,
+                    sent INTEGER DEFAULT 0
+                )
+            """)
+            self.sql_conn.commit()
+
         #elif mode == 'camera':
             
 
@@ -167,7 +190,7 @@ class MultiSensor(Sensor):
             self._shutdown_dt = witty.get_shutdown_datetime() 
 
         start_time= datetime.now().strftime('%Y%m%d_%H%M%S')
-        self.filename = f'{path_sensors}.csv'# all data is written to this CSV...
+        #self.filename = f'{path_sensors}.csv'# all data is written to this CSV...
 
         self.latest_readings = {
             "temperature": None, "relative_humidity": None,
@@ -183,8 +206,8 @@ class MultiSensor(Sensor):
         """
         # check that time is in proper range based on wittyPi set shutdown time
         if self._shutdown_dt >= date_time:
-            time_current_split = str(date_time.strftime("%Y%m%d_%H%M%S"))
-            self.data_dict['time'].append(time_current_split)
+            timestamp = date_time.strftime("%Y%m%d_%H%M%S")
+            self.data_dict['time'].append(timestamp)
             self.data_dict["name"].append(self.unit_name)
 
             ## Add Temperature and Humidity
@@ -192,48 +215,79 @@ class MultiSensor(Sensor):
                 self.latest_readings["temperature"], self.latest_readings["relative_humidity"] = self._temp_rh.temp_rh_data()
                 self.latest_readings["pressure"] = self._pres.pressure_data()
                 self.latest_readings["wind_speed"] = self._ws.add_data()
+
+                for k, v in self.latest_readings.items():
+                    self.data_dict.setdefault(k, []).append(v)
+
         else:
             raise ShutdownTime
 
-    def append_to_csv(self):
-        """
-        Write collected sensor data to CSV file.
-        """
-        if not os.path.exists(self.filename):  # create the csv with headers..
-            with open(self.filename, 'w') as data_file:
-                    csv_writer = DictWriter(data_file, fieldnames =self.data_dict.keys())
-                    csv_writer.writeheader()
+    # def append_to_csv(self):
+    #     """
+    #     Write collected sensor data to CSV file.
+    #     """
+    #     if not os.path.exists(self.filename):  # create the csv with headers..
+    #         with open(self.filename, 'w') as data_file:
+    #                 csv_writer = DictWriter(data_file, fieldnames =self.data_dict.keys())
+    #                 csv_writer.writeheader()
 
-        with open(self.filename, 'a') as data_file:
-            try: # Try to pass the dictionary into the csv 
-                csv_writer = DictWriter(data_file, fieldnames =self.data_dict.keys())
-                rows = []
-                print(self.data_dict)
-                len_list = len(next(iter(self.data_dict.values())))
-                for t in range(len_list):
-                    rows.append({k: self.data_dict[k][t] for k in self.data_dict.keys()})
-                csv_writer.writerows(rows)
+    #     with open(self.filename, 'a') as data_file:
+    #         try: # Try to pass the dictionary into the csv 
+    #             csv_writer = DictWriter(data_file, fieldnames =self.data_dict.keys())
+    #             rows = []
+    #             print(self.data_dict)
+    #             len_list = len(next(iter(self.data_dict.values())))
+    #             for t in range(len_list):
+    #                 rows.append({k: self.data_dict[k][t] for k in self.data_dict.keys()})
+    #             csv_writer.writerows(rows)
             
-                for k in self.data_dict: # reset data_dict keys
-                    self.data_dict[k] = []
+    #             for k in self.data_dict: # reset data_dict keys
+    #                 self.data_dict[k] = []
 
-                print("~*csv updated*~")
+    #             #print("~*csv updated*~")
 
-            except Exception as e:
-                print(f"An error occurred while appending to the CSV file: {e}")
+    #         except Exception as e:
+    #             print(f"An error occurred while appending to the CSV file: {e}")
+
+    def insert_into_db(self):
+        try:
+            len_list = len(next(iter(self.data_dict.values())))
+            for i in range(len_list):
+                row = {k: self.data_dict[k][i] for k in self.data_dict}
+                self.sql_cursor.execute("""
+                    INSERT INTO weather_data (name, time, temperature, relative_humidity, pressure, wind_speed)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (
+                    row.get("name"),
+                    row.get("time"),
+                    row.get("temperature"),
+                    row.get("relative_humidity"),
+                    row.get("pressure"),
+                    row.get("wind_speed")
+                ))
+            self.sql_conn.commit()
+
+            for k in self.data_dict:
+                self.data_dict[k] = []
+
+            #print("~*db updated*~")
+
+        except Exception as e:
+            print(f"An error occurred while inserting into DB: {e}")
 
     def sensors_deinit(self):
         print("Deinitializing I2C Bus")
         if hasattr(self, '_temp_rh'): self._temp_rh.sensor_deinit()
         if hasattr(self, '_pres'): self._pres.sensor_deinit()
         if hasattr(self, '_ws'): self._ws.sensor_deinit()
-        print("Finished Denitializing I2C Bus...Reading for Reboot")
+        self.sql_conn.close()
+        print("Finished Denit")
 
 if __name__ == "__main__":
     print("Starting Sensor Monitoring...")
 
     shared_i2c = board.I2C()
-    sensors = MultiSensor(path_sensors="/home/pi/data/", i2c=shared_i2c)
+    sensors = MultiSensor(db_path=db_path, i2c=shared_i2c)
     display = Display(i2c=shared_i2c)
 
     start_time = time.time()  # Initialize start_time before entering the loop
@@ -253,7 +307,7 @@ if __name__ == "__main__":
 
             # Save to CSV every 10 seconds
             if (time.time() - start_time) >= 10:
-                sensors.append_to_csv()
+                sensors.insert_into_db()
                 start_time = time.time()  # Reset timer
 
     except KeyboardInterrupt:

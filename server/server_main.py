@@ -94,20 +94,22 @@ def run_server():
             time.sleep(0.1)
 
     except KeyboardInterrupt:
+        disp.display_msg('Interrupted')
         stop_event.set()
         sensor_thread.join()
         display_thread.join()
         if len(list(sensors.data_dict.values())[0]) != 0: 
             sensors.append_to_csv()
         
-        disp.display_msg('Interrupted')
+        
         logging.info("KeyboardInterrupt")
         sys.exit()
 
     except:
+        disp.display_msg('Error')
         stop_event.set()
         display_thread.join()
-        disp.display_msg('Error')
+        
         logging.exception("Error recording sensor data")
         sys.exit()
 

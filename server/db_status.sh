@@ -10,9 +10,9 @@ SELECT * FROM heartbeats ORDER BY receipt_time DESC LIMIT 10;
 EOF
 
 echo ""
-echo "===== Latest Sensor Status ====="
+echo "===== Latest Cam Status ====="
 sqlite3 "$DB_PATH" <<EOF
 .headers on
 .mode column
-SELECT * FROM sensor_status;
+SELECT * FROM camera_status;
 EOF
