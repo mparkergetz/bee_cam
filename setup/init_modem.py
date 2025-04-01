@@ -1,31 +1,8 @@
-# import serial
-# import time
-# import subprocess
-# import psutil
-
-# if 'ppp0' in psutil.net_if_addrs():
-#     print('ppp0 already up')
-#     exit(0)
-
-# ser = serial.Serial('/dev/serial0', 9600, timeout=1)
-# ser.write(b'AT\r')
-# time.sleep(1)
-# response = ser.read(64).decode(errors='ignore')
-
-# ser.close()
-
-# if 'OK' in response:
-#     print('Modem OK, connecting')
-#     subprocess.run(['sudo', 'pppd', 'call', 'sim7080g'])
-# else:
-#     print('Modem not responding')
-
 import serial
 import time
 import subprocess
 import os
-
-#time.sleep(10)
+import RPi.GPIO as GPIO
 
 lockfile = "/var/lock/LCK..serial0"
 if os.path.exists(lockfile):
@@ -53,15 +30,17 @@ def modem_responds(max_attempts=5):
                 ser.close()
                 if 'OK' in recBuff.decode():
                     return True
-
-            # response = ser.read(64).decode(errors='ignore')
-            # ser.close()
-            # if 'OK' in response:
-            #     return True
         except:
             pass
         time.sleep(1) 
     return False
+
+def keypress():
+    GPIO.setmode(GPIO.BCM)
+    GPIO.setup(21, GPIO.OUT)
+    GPIO.output(21, GPIO.HIGH)
+    time.sleep(1.5)
+    GPIO.setup(21, GPIO.IN)
 
 while True:
     if not ppp0_up():
@@ -70,9 +49,14 @@ while True:
             print('Modem responsive, starting pppd...')
             subprocess.run(['sudo', 'pppd', 'call', 'sim7080g'])
             time.sleep(10)
+        elif modem_responds():
+            print('Modem responsive on second try, starting pppd...')
+            subprocess.run(['sudo', 'pppd', 'call', 'sim7080g'])
+            time.sleep(10)
         else:
-            print('Modem unresponsive, retrying...')
+            print('Modem unresponsive after two attempts, triggering keypress...')
+            keypress()
             time.sleep(10)
     else:
         print('ppp0 is up')
-        time.sleep(600)
+        time.sleep(300)
