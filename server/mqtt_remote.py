@@ -9,7 +9,7 @@ import sqlite3
 import paho.mqtt.client as mqtt
 from utilities.config import Config
 
-class MQTTRelay:
+class MQTTRemote:
     def __init__(self):
         self.config = Config()
         self.unit_name = self.config['general']['name']
@@ -29,11 +29,12 @@ class MQTTRelay:
 
         self.relay_interval = 1
 
-        self.conn = sqlite3.connect(self.heartbeat_db, check_same_thread=False)
-        self.cur = self.conn.cursor()
+        self.mqtt_conn = sqlite3.connect(self.heartbeat_db, check_same_thread=False)
+        self.mqtt_cursor = self.mqtt_conn.cursor()
         self._setup_db()
 
         self.weather_conn = sqlite3.connect(self.weather_db_path, check_same_thread=False)
+        #self.weather_conn.execute("PRAGMA journal_mode=WAL")
         self.weather_cursor = self.weather_conn.cursor()
 
         self.remote_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
@@ -41,7 +42,7 @@ class MQTTRelay:
         self.remote_client.tls_set(ca_certs=self.cert_path)
 
     def _setup_db(self):
-        self.cur.execute("""
+        self.mqtt_cursor.execute("""
         CREATE TABLE IF NOT EXISTS messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             topic TEXT,
@@ -50,16 +51,16 @@ class MQTTRelay:
             sent INTEGER DEFAULT 0
         )
         """)
-        self.conn.commit()
+        self.mqtt_conn.commit()
 
     def store_message(self, topic, payload, qos):
-        self.cur.execute("INSERT INTO messages (topic, payload, qos, sent) VALUES (?, ?, ?, 0)",
+        self.mqtt_cursor.execute("INSERT INTO messages (topic, payload, qos, sent) VALUES (?, ?, ?, 0)",
                          (topic, payload, qos))
-        self.conn.commit()
+        self.mqtt_conn.commit()
 
     def mark_sent(self, msg_id):
-        self.cur.execute("UPDATE messages SET sent = 1 WHERE id = ?", (msg_id,))
-        self.conn.commit()
+        self.mqtt_cursor.execute("UPDATE messages SET sent = 1 WHERE id = ?", (msg_id,))
+        self.mqtt_conn.commit()
 
     def test_connection(self):
         topic = f"{self.unit_name}/status/test"
@@ -70,8 +71,8 @@ class MQTTRelay:
     def resend_unsent(self):
         while True:
             try:
-                self.cur.execute("SELECT id, topic, payload, qos FROM messages WHERE sent = 0")
-                rows = self.cur.fetchall()
+                self.mqtt_cursor.execute("SELECT id, topic, payload, qos FROM messages WHERE sent = 0")
+                rows = self.mqtt_cursor.fetchall()
                 for msg_id, topic, payload, qos in rows:
                     result = self.remote_client.publish(topic, payload, qos=qos)
                     if result.rc == mqtt.MQTT_ERR_SUCCESS:
@@ -83,21 +84,33 @@ class MQTTRelay:
     def send_weather_data(self):
         while True:
             try:
-                self.weather_cursor.execute("SELECT id, time, temperature, relative_humidity, pressure, wind_speed FROM weather_data WHERE sent = 0")
-                rows = self.weather_cursor.fetchall()
-                for row in rows:
-                    id_, ts, temp, hum, pres, wind = row
-                    topic = f"{self.unit_name}/weather"
-                    payload = json.dumps({
-                        "time": ts,
-                        "temp": temp,
-                        "humid": hum,
-                        "pres": pres,
-                        "wind": wind
-                    })
-                    self.store_message(topic, payload, qos=1)
-                    self.weather_cursor.execute("UPDATE weather_data SET sent = 1 WHERE id = ?", (id_,))
-                self.weather_conn.commit()
+                ## SENDS ALL UNSENT WEATHER UPDATES
+                # self.weather_cursor.execute("SELECT id, time, temperature, relative_humidity, pressure, wind_speed FROM weather_data WHERE sent = 0")
+                # rows = self.weather_cursor.fetchall()
+                # for row in rows:
+
+                ## JUST SENDS LATEST WEATHER STATUS
+                self.weather_cursor.execute("""
+                                SELECT id, time, temperature, relative_humidity, pressure, wind_speed, sent
+                                FROM weather_data
+                                ORDER BY id DESC
+                                LIMIT 1
+                            """)
+                row = self.weather_cursor.fetchone()
+                if row:
+                    id_, ts, temp, hum, pres, wind, sent = row
+                    if sent == 0:
+                        topic = f"{self.unit_name}/weather"
+                        payload = json.dumps({
+                            "time": ts,
+                            "temp": temp,
+                            "humid": hum,
+                            "pres": pres,
+                            "wind": wind
+                        })
+                        self.store_message(topic, payload, qos=1)
+                        self.weather_cursor.execute("UPDATE weather_data SET sent = 1 WHERE id = ?", (id_,))
+                        self.weather_conn.commit()
             except Exception:
                 pass
             time.sleep(60)
@@ -150,5 +163,5 @@ class MQTTRelay:
 
 
 if __name__ == "__main__":
-    relay = MQTTRelay()
+    relay = MQTTRemote()
     relay.start()

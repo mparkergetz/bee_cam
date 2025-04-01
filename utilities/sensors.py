@@ -168,6 +168,7 @@ class MultiSensor(Sensor):
             self._ws = WindSensor(i2c=i2c)
 
             self.sql_conn = sqlite3.connect(db_path, check_same_thread=False)
+            #self.sql_conn.execute("PRAGMA journal_mode=WAL")
             self.sql_cursor = self.sql_conn.cursor()
             self.sql_cursor.execute("""
                 CREATE TABLE IF NOT EXISTS weather_data (
@@ -308,7 +309,7 @@ if __name__ == "__main__":
             # Save to CSV every 10 seconds
             if (time.time() - start_time) >= 10:
                 sensors.insert_into_db()
-                start_time = time.time()  # Reset timer
+                start_time = time.time()
 
     except KeyboardInterrupt:
         print("Exiting Program...")

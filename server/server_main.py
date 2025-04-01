@@ -50,7 +50,7 @@ def run_server():
         while not stop_event.is_set():
             time_current = datetime.now()
             sensors.add_data(time_current)
-            time.sleep(120)
+            time.sleep(5) ## HOW OFTEN DOES SENSOR DATA GET ADDED TO QUEUE
 
     def update_display():
         display_interval = 1
@@ -87,7 +87,7 @@ def run_server():
                 readings["wind_speed"]
             )
 
-            if (time.monotonic() - curr_time) >= 120:
+            if (time.monotonic() - curr_time) >= 10:
                 #print(psutil.cpu_percent(interval=1), "% CPU Usage")
                 sensors.insert_into_db()
                 curr_time = time.monotonic()
