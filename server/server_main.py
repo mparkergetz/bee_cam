@@ -5,8 +5,9 @@ import logging
 from utilities.config import Config
 from utilities.display import Display
 from utilities.sensors import MultiSensor
-from .mqtt_local import MonitorHeartbeat
-from .mqtt_remote import MQTTRemote
+from utilities.mqtt import MQTTManager
+# from .mqtt_local import MonitorHeartbeat
+# from .mqtt_remote import MQTTRemote
 from time import sleep
 from datetime import datetime
 import threading
@@ -66,8 +67,8 @@ def run_server():
                 )
             time.sleep(display_interval)
 
-    heartbeat_thread = threading.Thread(target=MonitorHeartbeat, daemon=True)
-    heartbeat_thread.start()
+    mqtt_mgmt = MQTTManager()
+    mqtt_mgmt.start()
 
     sensor_thread = threading.Thread(target = sensor_data)
     sensor_thread.start()

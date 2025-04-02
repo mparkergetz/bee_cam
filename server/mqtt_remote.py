@@ -91,26 +91,23 @@ class MQTTRemote:
 
                 ## JUST SENDS LATEST WEATHER STATUS
                 self.weather_cursor.execute("""
-                                SELECT id, time, temperature, relative_humidity, pressure, wind_speed, sent
-                                FROM weather_data
-                                ORDER BY id DESC
-                                LIMIT 1
-                            """)
+                    SELECT id, time, temperature, relative_humidity, pressure, wind_speed
+                    FROM weather_data
+                    ORDER BY id DESC
+                    LIMIT 1
+                """)
                 row = self.weather_cursor.fetchone()
                 if row:
-                    id_, ts, temp, hum, pres, wind, sent = row
-                    if sent == 0:
-                        topic = f"{self.unit_name}/weather"
-                        payload = json.dumps({
-                            "time": ts,
-                            "temp": temp,
-                            "humid": hum,
-                            "pres": pres,
-                            "wind": wind
-                        })
-                        self.store_message(topic, payload, qos=1)
-                        self.weather_cursor.execute("UPDATE weather_data SET sent = 1 WHERE id = ?", (id_,))
-                        self.weather_conn.commit()
+                    id_, ts, temp, hum, pres, wind = row
+                    topic = f"{self.unit_name}/weather"
+                    payload = json.dumps({
+                        "time": ts,
+                        "temp": temp,
+                        "humid": hum,
+                        "pres": pres,
+                        "wind": wind
+                    })
+                    self.store_message(topic, payload, qos=1)
             except Exception:
                 pass
             time.sleep(60)

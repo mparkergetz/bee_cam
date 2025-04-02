@@ -178,8 +178,7 @@ class MultiSensor(Sensor):
                     temperature REAL,
                     relative_humidity REAL,
                     pressure REAL,
-                    wind_speed REAL,
-                    sent INTEGER DEFAULT 0
+                    wind_speed REAL
                 )
             """)
             self.sql_conn.commit()

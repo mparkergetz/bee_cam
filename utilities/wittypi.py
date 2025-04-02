@@ -100,7 +100,7 @@ class WittyPi():
             sec,min,hour,days,weekday,month,year= time_list
             return datetime(year = year+2000, month = month, day=days,hour = hour,minute=min,second=sec)
         except ValueError as e:
-            logging.warning(f"WittyPi returned invalid datetime values: {e}. Falling back to system time.")
+            logging.warning(f"WittyPi returned invalid datetime values: {e}. time_list: {time_list}. Falling back to system time.")
             return datetime.now()
 
     def get_shutdown_datetime(self, hr=20, min=0, sec=0):
