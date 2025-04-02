@@ -5,7 +5,8 @@ import logging
 from utilities.config import Config
 from utilities.display import Display
 from utilities.sensors import MultiSensor
-from .monitor_heartbeat import MonitorHeartbeat
+from .mqtt_local import MonitorHeartbeat
+from .mqtt_remote import MQTTRemote
 from time import sleep
 from datetime import datetime
 import threading

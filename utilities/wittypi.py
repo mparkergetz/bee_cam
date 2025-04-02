@@ -91,14 +91,18 @@ class WittyPi():
         
         datetime.now() could be used but for redundancy sake this method will be used just in case. Regardless the WittyPi should have a similar if not the same time as datetime.now()
         """
-        time_list = []
-        for i in range(58,65):
+        try:
+            time_list = []
+            for i in range(58,65):
 
-            time_list.append(self.bcd_to_int(self._bus.read_byte_data(8,i)))
-        #print(time_list)
-        sec,min,hour,days,weekday,month,year= time_list
-        curr_time = datetime(year = year+2000, month = month, day=days,hour = hour,minute=min,second=sec)
-        return curr_time
+                time_list.append(self.bcd_to_int(self._bus.read_byte_data(8,i)))
+            #print(time_list)
+            sec,min,hour,days,weekday,month,year= time_list
+            return datetime(year = year+2000, month = month, day=days,hour = hour,minute=min,second=sec)
+        except ValueError as e:
+            logging.warning(f"WittyPi returned invalid datetime values: {e}. Falling back to system time.")
+            return datetime.now()
+
     def get_shutdown_datetime(self, hr=20, min=0, sec=0):
         """
         hr - default hour set to 8pm
