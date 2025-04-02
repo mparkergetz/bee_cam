@@ -28,15 +28,22 @@ class MQTTManager:
         self.mqtt_user = "user1"
         self.mqtt_pass = "user1pasS"
         self.heartbeat_topic = "heartbeat"
+        self.hub_IP = "192.168.2.1"
 
         self.last_seen_cache = {}
         self.camera_warnings = {}
 
-        self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
-        self.client.username_pw_set(self.mqtt_user, self.mqtt_pass)
+        # Remote client (EMQX)
+        self.remote_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+        self.remote_client.username_pw_set(self.mqtt_user, self.mqtt_pass)
         cert_path = os.path.join(os.path.dirname(__file__), "mycert.crt")
-        self.client.tls_set(ca_certs=cert_path)
-        self.client.on_message = self._on_heartbeat
+        self.remote_client.tls_set(ca_certs=cert_path)
+        self.remote_client.on_connect = self._on_remote_connect
+
+        # Local client (LAN heartbeat)
+        self.local_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+        self.local_client.on_connect = self._on_local_connect
+        self.local_client.on_message = self._on_heartbeat
 
         # DB connections
         self.weather_conn = sqlite3.connect(self.weather_db_path, check_same_thread=False)
@@ -69,8 +76,23 @@ class MQTTManager:
         """)
         self.hb_conn.commit()
 
+    def _on_local_connect(self, client, userdata, flags, rc, properties=None):
+        if rc == 0:
+            logging.info("Connected to local MQTT broker (heartbeat)")
+            client.subscribe(self.heartbeat_topic)
+            logging.info(f"Subscribed to topic: {self.heartbeat_topic}")
+        else:
+            logging.error(f"Local MQTT connection failed with code {rc}")
+
+    def _on_remote_connect(self, client, userdata, flags, rc, properties=None):
+        if rc == 0:
+            logging.info("Connected to remote MQTT broker (EMQX)")
+        else:
+            logging.error(f"Remote MQTT connection failed with code {rc}")
+
     def _on_heartbeat(self, client, userdata, msg):
         try:
+            logging.info(f"[HEARTBEAT RECEIVED] Raw payload: {msg.payload}")
             data = json.loads(msg.payload.decode())
             camera_name = data["name"]
             timestamp = datetime.fromisoformat(data["timestamp"])
@@ -153,16 +175,19 @@ class MQTTManager:
                         "pres": pres,
                         "wind": wind
                     })
-                    self.client.publish(topic, payload, qos=1)
+                    self.remote_client.publish(topic, payload, qos=1)
             except Exception as e:
                 logging.warning(f"Failed to publish weather data: {e}")
             time.sleep(60)
 
     def _send_camera_status(self):
+        local_conn = sqlite3.connect(self.heartbeat_db_path, check_same_thread=False)
+        local_cursor = local_conn.cursor()
+
         while True:
             try:
-                self.hb_cursor.execute("SELECT camera_name, last_seen, sync_status, camera_on FROM camera_status")
-                rows = self.hb_cursor.fetchall()
+                local_cursor.execute("SELECT camera_name, last_seen, sync_status, camera_on FROM camera_status")
+                rows = local_cursor.fetchall()
 
                 for camera_name, last_seen_raw, sync_status, camera_on in rows:
                     try:
@@ -182,7 +207,7 @@ class MQTTManager:
                             "sync_status": sync_status,
                             "camera_on": bool(camera_on)
                         })
-                        result = self.client.publish(topic, payload, qos=1)
+                        result = self.remote_client.publish(topic, payload, qos=1)
                         if result.rc == mqtt.MQTT_ERR_SUCCESS:
                             logging.info(f"Published camera status for {camera_name}")
                         else:
@@ -192,17 +217,21 @@ class MQTTManager:
             except Exception as e:
                 logging.warning(f"Failed to send camera status: {e}")
 
-            time.sleep(300)
+            time.sleep(60)
 
     def start(self):
         try:
-            self.client.connect_async(self.remote_broker, self.remote_port)
-            self.client.loop_start()
+            # Remote client setup
+            self.remote_client.connect_async(self.remote_broker, self.remote_port)
+            self.remote_client.loop_start()
             time.sleep(2)
-            self.client.subscribe(self.heartbeat_topic)
-            logging.info("MQTT client connected and subscribed to heartbeat.")
 
-            # Start threads
+            # Local client setup
+            self.local_client.connect_async(self.hub_IP, 1883)
+            self.local_client.loop_start()
+
+            logging.info("MQTTManager started both local and remote clients.")
+
             threading.Thread(target=self._monitor_camera_status, daemon=True).start()
             threading.Thread(target=self._send_weather_data, daemon=True).start()
             threading.Thread(target=self._send_camera_status, daemon=True).start()

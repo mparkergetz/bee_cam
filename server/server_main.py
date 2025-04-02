@@ -103,8 +103,10 @@ def run_server():
         display_thread.join()
         if len(list(sensors.data_dict.values())[0]) != 0: 
             sensors.insert_into_db()
-        
-        
+
+        mqtt_mgmt.client.loop_stop()
+        mqtt_mgmt.client.disconnect()
+
         logging.info("KeyboardInterrupt")
         sys.exit()
 
