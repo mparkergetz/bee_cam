@@ -17,7 +17,7 @@ class MQTTManager:
         self.unit_name = self.config['general']['name']
 
         self.package_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-        self.weather_db_path = os.path.join(self.package_root, self.config['communication']['weather_db'])
+        self.sensor_db_path = os.path.join(self.package_root, self.config['communication']['sensor_db'])
         self.heartbeat_db_path = os.path.join(self.package_root, self.config['communication']['mqtt_db'])
 
         self.TIMEOUT_THRESHOLD = self.config.getint('communication', 'timeout_threshold')
@@ -48,8 +48,8 @@ class MQTTManager:
         self.local_client.on_message = self._on_heartbeat
 
         # DB connections
-        self.weather_conn = sqlite3.connect(self.weather_db_path, check_same_thread=False)
-        self.weather_cursor = self.weather_conn.cursor()
+        self.sensor_conn = sqlite3.connect(self.sensor_db_path, check_same_thread=False)
+        self.sensor_cursor = self.sensor_conn.cursor()
 
         self.hb_conn = sqlite3.connect(self.heartbeat_db_path, check_same_thread=False)
         self.hb_cursor = self.hb_conn.cursor()
@@ -159,27 +159,28 @@ class MQTTManager:
                 logger.error(f"Error checking camera status: {e}")
             time.sleep(10)
 
-    def _send_weather_data(self):
+    def _send_sensor_data(self):
         while True:
             try:
-                self.weather_cursor.execute("""
-                    SELECT time, temperature, relative_humidity, pressure, wind_speed
-                    FROM weather_data ORDER BY id DESC LIMIT 1
+                self.sensor_cursor.execute("""
+                    SELECT time, temperature, relative_humidity, pressure, wind_speed, internal_temp
+                    FROM sensor_data ORDER BY id DESC LIMIT 1
                 """)
-                row = self.weather_cursor.fetchone()
+                row = self.sensor_cursor.fetchone()
                 if row:
-                    ts, temp, humid, pres, wind = row
-                    topic = f"{self.unit_name}/weather"
+                    ts, temp, humid, pres, wind, internal_temp = row
+                    topic = f"{self.unit_name}/sensors"
                     payload = json.dumps({
                         "time": ts,
                         "temp": temp,
                         "humid": humid,
                         "pres": pres,
-                        "wind": wind
+                        "wind": wind,
+                        "int_temp": internal_temp
                     })
                     self.remote_client.publish(topic, payload, qos=1)
             except Exception as e:
-                logger.warning(f"Failed to publish weather data: {e}")
+                logger.warning(f"Failed to publish sensor data: {e}")
             time.sleep(60)
 
     def _send_camera_status(self):
@@ -235,7 +236,7 @@ class MQTTManager:
             logger.info("MQTTManager started both local and remote clients.")
 
             threading.Thread(target=self._monitor_camera_status, daemon=True).start()
-            threading.Thread(target=self._send_weather_data, daemon=True).start()
+            threading.Thread(target=self._send_sensor_data, daemon=True).start()
             threading.Thread(target=self._send_camera_status, daemon=True).start()
         except Exception as e:
             logger.error(f"Failed to start MQTTManager: {e}")

@@ -29,7 +29,7 @@ package_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 name = config['general']['name']
 mode = config['general']['mode']
 
-db_relative_path = config['communication']['weather_db']
+db_relative_path = config['communication']['sensor_db']
 db_path = os.path.join(package_root, db_relative_path)
 
 if mode == 'server':
@@ -48,10 +48,6 @@ class Sensor:
          self.failed = False
 
     def get_data(self,sensor_type):
-        """
-        Depending on the child class sensor device get_data will be
-        used in order to grab the current sensor reading from the sensor.
-        """
         if self.failed:
             return None
         try:
@@ -116,48 +112,9 @@ class PresSensor(Sensor):
 def map_range(value, in_min, in_max, out_min, out_max):
     return out_min + (value - in_min) * (out_max - out_min) / (in_max - in_min)
 
-# def adc_to_wind_speed(val):
-#     """Convert MCP3421 18-bit ADC value to wind speed in m/s with offset correction."""
-#     voltage_val = (val / 131072) * 2.048 
-#     corrected_voltage = max(voltage_val - 0.0053, 0.4) 
-#     return (corrected_voltage - 0.4) * (32.4 / (2.0 - 0.4))  
-
 def adc_to_wind_speed(voltage_val):
     V = max(voltage_val - 0.00575, 0.4)
     return ((V - 0.4) / 1.6) * 32.4
-
-# class WindSensor(Sensor):
-#     def __init__(self, i2c=None):
-#         try:
-#             super().__init__(i2c=i2c)
-#             self.adc = ADC.MCP3421(self.i2c, gain=1, resolution=18, continuous_mode=True)
-#             self.adc_channel = AnalogIn(self.adc)
-#             self.failed = False
-#         except Exception as e:
-#             logger.error(f"Wind Sensor Initialization Failed: {e}")
-#             self.failed = True
-
-#     def get_data(self, sensor_type="wind_speed"):
-#         if self.failed:
-#             return None
-#         try:
-#             adc_val = self.adc_channel.value
-#             return adc_to_wind_speed(adc_val)
-#         except Exception as e:
-#             logger.error(f"Failed to get wind sensor data: {e}")
-#             return None
-
-#     def add_data(self, sensor_type="wind_speed"):
-#         if self.failed:
-#             return None
-#         try:
-#             data = self.get_data(sensor_type)
-#             if data is not None:
-#                 self.data_dict.setdefault(sensor_type, []).append(data)
-#             return data
-#         except Exception as e:
-#             logger.error(f"Failed to add wind sensor data: {e}")
-#             return None
 
 class WindSensor(Sensor):
     def __init__(self, i2c=None):
@@ -192,7 +149,6 @@ class WindSensor(Sensor):
             logger.error(f"Failed to add wind sensor data: {e}")
             return None
 
-
 class MultiSensor(Sensor):
     """
     Class that holds the various different sensors for acquiring data
@@ -203,6 +159,7 @@ class MultiSensor(Sensor):
         """
         super().__init__(i2c=i2c)
         self.unit_name = name
+        self.wittypi = WittyPi()
 
         if mode == 'server':
             self._temp_rh = TempRHSensor(i2c=i2c)
@@ -210,17 +167,17 @@ class MultiSensor(Sensor):
             self._ws = WindSensor(i2c=i2c)
 
             self.sql_conn = sqlite3.connect(db_path, check_same_thread=False)
-            #self.sql_conn.execute("PRAGMA journal_mode=WAL")
             self.sql_cursor = self.sql_conn.cursor()
             self.sql_cursor.execute("""
-                CREATE TABLE IF NOT EXISTS weather_data (
+                CREATE TABLE IF NOT EXISTS sensor_data (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     name TEXT,
                     time TEXT,
                     temperature REAL,
                     relative_humidity REAL,
                     pressure REAL,
-                    wind_speed REAL
+                    wind_speed REAL,
+                    internal_temp REAL
                 )
             """)
             self.sql_conn.commit()
@@ -244,12 +201,27 @@ class MultiSensor(Sensor):
         self.data_dict["name"].append(self.unit_name)
 
         if mode == 'server':
-            self.latest_readings["temperature"], self.latest_readings["relative_humidity"] = self._temp_rh.temp_rh_data()
-            self.latest_readings["pressure"] = self._pres.pressure_data()
-            self.latest_readings["wind_speed"] = self._ws.add_data()
+            temp, rh = self._temp_rh.temp_rh_data()
+            self.latest_readings["temperature"] = round(temp, 2) if temp is not None else None
+            self.latest_readings["relative_humidity"] = round(rh, 2) if rh is not None else None
+
+            pres = self._pres.pressure_data()
+            self.latest_readings["pressure"] = round(pres, 2) if pres is not None else None
+
+            wind = self._ws.add_data()
+            self.latest_readings["wind_speed"] = round(wind, 2) if wind is not None else None
 
             for k, v in self.latest_readings.items():
                 self.data_dict.setdefault(k, []).append(v)
+
+        if hasattr(self, "wittypi"):
+            with self.wittypi as wp:
+                internal_temp_data = wp.get_internal_temperature()
+                internal_temp_c = internal_temp_data.get("temp_c")
+        else:
+            internal_temp_c = None
+
+        self.data_dict.setdefault("internal_temp", []).append(internal_temp_c)
 
         # else:
         #     raise ShutdownTime
@@ -260,15 +232,16 @@ class MultiSensor(Sensor):
             for i in range(len_list):
                 row = {k: self.data_dict[k][i] for k in self.data_dict}
                 self.sql_cursor.execute("""
-                    INSERT INTO weather_data (name, time, temperature, relative_humidity, pressure, wind_speed)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    INSERT INTO sensor_data (name, time, temperature, relative_humidity, pressure, wind_speed, internal_temp)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                 """, (
                     row.get("name"),
                     row.get("time"),
                     row.get("temperature"),
                     row.get("relative_humidity"),
                     row.get("pressure"),
-                    row.get("wind_speed")
+                    row.get("wind_speed"),
+                    row.get("internal_temp")
                 ))
             self.sql_conn.commit()
 
@@ -307,8 +280,7 @@ if __name__ == "__main__":
 
             display.display_sensor_data(temp, humidity, pressure, wind_speed)
 
-            # Save to CSV every 10 seconds
-            if (time.time() - start_time) >= 10:
+            if (time.time() - start_time) >= 10: # Save to CSV every 10 seconds
                 sensors.insert_into_db()
                 start_time = time.time()
 
