@@ -3,7 +3,9 @@ import json
 import time
 import sqlite3
 import threading
-from utilities.logger import logger
+from utilities.logger import logger as base_logger
+logger = base_logger.getChild("MQTT")
+
 from datetime import datetime
 import paho.mqtt.client as mqtt
 

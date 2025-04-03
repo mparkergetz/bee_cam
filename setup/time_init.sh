@@ -1,5 +1,5 @@
 #!/bin/bash
-# Description: This script attempts to connect to the network over a 10 second period, if network connection can be established then will reestablish time to the hwclock and system time.  
+# Description: This script attempts to connect to the network over a 1 second period, if network connection can be established then will reestablish time to the hwclock and system time.  
 ## If no network connection can be established then will check that hwclock and date times are equal. If that is the case then will set the wittyPi time based on that.
 
 # call wittypi utilities
@@ -10,12 +10,10 @@ echo "$util_dir"
 time_sys=$(date '+%Y-%m-%d %H:%M:%S')
 time_rtc=$(sudo hwclock -r)
 time_rtc=$(echo "$time_rtc" | cut -d'-' -f1-3)
-
 echo "System Time vs System RTC: $time_sys and $time_rtc"
 
 sec_sys=$(date -d "$time_sys" +%s)
 sec_rtc=$(date -d "$time_rtc" +%s)
-
 num_sec=$((sec_sys - sec_rtc))
 
 # Absolute Difference:
@@ -33,10 +31,8 @@ if ping -q -c 1 -W 1 8.8.8.8 >/dev/null; then
       echo "RESTARTING..TIME SYNC..."
       sudo systemctl restart systemd-timesyncd
       echo "Current RTC: $(sudo hwclock -r) | Current Sys: $(date '+%Y-%m-%d %H:%M:%S')"
-   
    else
       echo "Num of seconds over: $num_sec"
-
    fi
 
 else

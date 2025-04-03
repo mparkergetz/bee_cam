@@ -16,7 +16,9 @@ from smbus2 import SMBus
 from PIL import Image, ImageDraw, ImageFont
 import adafruit_ssd1306 # display
 
-from utilities.logger import logger
+from utilities.logger import logger as base_logger
+logger = base_logger.getChild("Sensors")
+
 from utilities.display import Display
 from utilities.config import Config
 from utilities.wittypi import WittyPi
@@ -223,71 +225,34 @@ class MultiSensor(Sensor):
             """)
             self.sql_conn.commit()
 
-        #elif mode == 'camera':
+        #elif mode == 'camera':  # ADD LUX DB DATA SAVE HERE
             
-
-        with WittyPi() as witty:
-            self._shutdown_dt = witty.get_shutdown_datetime() 
+        # with WittyPi() as witty: ### REMOVED TO CLEAN, UPTIME CONTROLLED EXTERNALLY
+        #     self._shutdown_dt = witty.get_shutdown_datetime() 
 
         start_time= datetime.now().strftime('%Y%m%d_%H%M%S')
-        #self.filename = f'{path_sensors}.csv'# all data is written to this CSV...
 
         self.latest_readings = {
             "temperature": None, "relative_humidity": None,
             "pressure": None, "wind_speed": None
         }
 
-    # def get_shutdown_datetime(self):
-    #     return self._shutdown_dt
-
     def add_data(self,date_time):
-        """
-        Collect sensor data, store it in the dictionary, and update latest readings.
-        """
-        # check that time is in proper range based on wittyPi set shutdown time
-        if self._shutdown_dt >= date_time:
-            timestamp = date_time.strftime("%Y%m%d_%H%M%S")
-            self.data_dict['time'].append(timestamp)
-            self.data_dict["name"].append(self.unit_name)
+        # if self._shutdown_dt >= date_time: # UNCOMMENT & FIX INDENTS IF CONTINUED SAVING IS PROBLEMATIC
+        timestamp = date_time.strftime("%Y%m%d_%H%M%S")
+        self.data_dict['time'].append(timestamp)
+        self.data_dict["name"].append(self.unit_name)
 
-            ## Add Temperature and Humidity
-            if mode == 'server':
-                self.latest_readings["temperature"], self.latest_readings["relative_humidity"] = self._temp_rh.temp_rh_data()
-                self.latest_readings["pressure"] = self._pres.pressure_data()
-                self.latest_readings["wind_speed"] = self._ws.add_data()
+        if mode == 'server':
+            self.latest_readings["temperature"], self.latest_readings["relative_humidity"] = self._temp_rh.temp_rh_data()
+            self.latest_readings["pressure"] = self._pres.pressure_data()
+            self.latest_readings["wind_speed"] = self._ws.add_data()
 
-                for k, v in self.latest_readings.items():
-                    self.data_dict.setdefault(k, []).append(v)
+            for k, v in self.latest_readings.items():
+                self.data_dict.setdefault(k, []).append(v)
 
-        else:
-            raise ShutdownTime
-
-    # def append_to_csv(self):
-    #     """
-    #     Write collected sensor data to CSV file.
-    #     """
-    #     if not os.path.exists(self.filename):  # create the csv with headers..
-    #         with open(self.filename, 'w') as data_file:
-    #                 csv_writer = DictWriter(data_file, fieldnames =self.data_dict.keys())
-    #                 csv_writer.writeheader()
-
-    #     with open(self.filename, 'a') as data_file:
-    #         try: # Try to pass the dictionary into the csv 
-    #             csv_writer = DictWriter(data_file, fieldnames =self.data_dict.keys())
-    #             rows = []
-    #             print(self.data_dict)
-    #             len_list = len(next(iter(self.data_dict.values())))
-    #             for t in range(len_list):
-    #                 rows.append({k: self.data_dict[k][t] for k in self.data_dict.keys()})
-    #             csv_writer.writerows(rows)
-            
-    #             for k in self.data_dict: # reset data_dict keys
-    #                 self.data_dict[k] = []
-
-    #             #print("~*csv updated*~")
-
-    #         except Exception as e:
-    #             print(f"An error occurred while appending to the CSV file: {e}")
+        # else:
+        #     raise ShutdownTime
 
     def insert_into_db(self):
         try:
@@ -310,13 +275,10 @@ class MultiSensor(Sensor):
             for k in self.data_dict:
                 self.data_dict[k] = []
 
-            #print("~*db updated*~")
-
         except Exception as e:
             print(f"An error occurred while inserting into DB: {e}")
 
     def sensors_deinit(self):
-        #print("Deinitializing I2C Bus")
         if hasattr(self, '_temp_rh'): self._temp_rh.sensor_deinit()
         if hasattr(self, '_pres'): self._pres.sensor_deinit()
         if hasattr(self, '_ws'): self._ws.sensor_deinit()
