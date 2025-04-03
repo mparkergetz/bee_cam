@@ -2,7 +2,7 @@ import time
 import os
 from datetime import datetime, timedelta
 from smbus2 import SMBus
-import logging
+from utilities.logger import logger
 
 class ShutdownTime(Exception):
     """Raised when the shutdown time is reached. This time will change on reboot"""
@@ -100,7 +100,7 @@ class WittyPi():
             sec,min,hour,days,weekday,month,year= time_list
             return datetime(year = year+2000, month = month, day=days,hour = hour,minute=min,second=sec)
         except ValueError as e:
-            logging.warning(f"WittyPi returned invalid datetime values: {e}. time_list: {time_list}. Falling back to system time.")
+            logger.warning(f"WittyPi returned invalid datetime values: {e}. time_list: {time_list}. Falling back to system time.")
             return datetime.now()
 
     def get_shutdown_datetime(self, hr=20, min=0, sec=0):

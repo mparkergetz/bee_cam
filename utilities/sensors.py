@@ -16,6 +16,7 @@ from smbus2 import SMBus
 from PIL import Image, ImageDraw, ImageFont
 import adafruit_ssd1306 # display
 
+from utilities.logger import logger
 from utilities.display import Display
 from utilities.config import Config
 from utilities.wittypi import WittyPi
@@ -53,8 +54,7 @@ class Sensor:
             data = getattr(self.sensor_device, sensor_type)
             return data
         except Exception as e:
-            #logging.error(f"Error retrieving {sensor_type} data: {e}")
-
+            logger.error(f"Error retrieving {sensor_type} data: {e}")
             self.failed = True
             return None
 
@@ -86,7 +86,7 @@ class TempRHSensor(Sensor):
             super().__init__(adafruit_sht31d.SHT31D(i2c if i2c else board.I2C()), i2c)
             self.sensor_types = ['temperature', 'relative_humidity']
         except Exception as e:
-            #logging.error(f"Temperature/Humidity Sensor Initialization Failed: {e}")
+            logger.error(f"Temperature/Humidity Sensor Initialization Failed: {e}")
             self.failed = True  
 
     def temp_rh_data(self):
@@ -100,7 +100,7 @@ class PresSensor(Sensor):
             super().__init__(adafruit_bmp3xx.BMP3XX_I2C(i2c if i2c else board.I2C()), i2c)
             self.sensor_types = ['pressure']
         except Exception as e:
-            #logging.error(f"Pressure Sensor Initialization Failed: {e}")
+            logger.error(f"Pressure Sensor Initialization Failed: {e}")
             self.failed = True
 
     def pressure_data(self):
@@ -126,7 +126,7 @@ class WindSensor(Sensor):
             self.adc_channel = AnalogIn(self.adc)
             self.failed = False
         except Exception as e:
-            #logging.error(f"Wind Sensor Initialization Failed: {e}")
+            logger.error(f"Wind Sensor Initialization Failed: {e}")
             self.failed = True
 
     def get_data(self, sensor_type="wind_speed"):
@@ -136,7 +136,7 @@ class WindSensor(Sensor):
             adc_val = self.adc_channel.value
             return adc_to_wind_speed(adc_val)
         except Exception as e:
-            #logging.error(f"Failed to get wind sensor data: {e}")
+            logger.error(f"Failed to get wind sensor data: {e}")
             return None
 
     def add_data(self, sensor_type="wind_speed"):
@@ -148,7 +148,7 @@ class WindSensor(Sensor):
                 self.data_dict.setdefault(sensor_type, []).append(data)
             return data
         except Exception as e:
-            #logging.error(f"Failed to add wind sensor data: {e}")
+            logger.error(f"Failed to add wind sensor data: {e}")
             return None
 
 class MultiSensor(Sensor):

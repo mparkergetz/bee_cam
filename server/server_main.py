@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 import os
 import sys
-import logging
 from utilities.config import Config
+from utilities.logger import logger
 from utilities.display import Display
 from utilities.sensors import MultiSensor
 from utilities.mqtt import MQTTManager
@@ -36,14 +36,14 @@ def run_server():
     disp.display_msg('Initializing')
 
     # Configure logging
-    log_dir = os.path.join(MODULE_ROOT, "logs")
+    # log_dir = os.path.join(MODULE_ROOT, "logs")
     #print(log_dir)
-    os.makedirs(log_dir, exist_ok=True)
-    log_file = os.path.join(log_dir, "server_main.log")
-    logging.basicConfig(filename=log_file, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    # os.makedirs(log_dir, exist_ok=True)
+    # log_file = os.path.join(log_dir, "server_main.log")
+    # logging.basicConfig(filename=log_file, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-    logging.info("###################### NEW RUN ##################################")
-    logging.info("Begin logging data")
+    logger.info("###################### NEW RUN ##################################")
+    logger.info("Begin logging data")
 
     # Create thread stop event
     stop_event = threading.Event()
@@ -107,7 +107,7 @@ def run_server():
         mqtt_mgmt.client.loop_stop()
         mqtt_mgmt.client.disconnect()
 
-        logging.info("KeyboardInterrupt")
+        logger.info("KeyboardInterrupt")
         sys.exit()
 
     except:
@@ -115,7 +115,7 @@ def run_server():
         stop_event.set()
         display_thread.join()
         
-        logging.exception("Error recording sensor data")
+        logger.exception("Error recording sensor data")
         sys.exit()
 
 if __name__ == "__main__":
