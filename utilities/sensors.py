@@ -33,8 +33,10 @@ db_path = os.path.join(package_root, db_relative_path)
 if mode == 'server':
     import adafruit_sht31d # temp humidity
     import adafruit_bmp3xx # pressure
-    import adafruit_mcp3421.mcp3421 as ADC # anemometer adc
-    from adafruit_mcp3421.analog_in import AnalogIn
+    # import adafruit_mcp3421.mcp3421 as ADC # anemometer adc
+    # from adafruit_mcp3421.analog_in import AnalogIn
+    import adafruit_ads1x15.ads1115 as ADS
+    from adafruit_ads1x15.analog_in import AnalogIn
 
 class Sensor:
     data_dict = {"name": [], "time": []}
@@ -112,29 +114,66 @@ class PresSensor(Sensor):
 def map_range(value, in_min, in_max, out_min, out_max):
     return out_min + (value - in_min) * (out_max - out_min) / (in_max - in_min)
 
-def adc_to_wind_speed(val):
-    """Convert MCP3421 18-bit ADC value to wind speed in m/s with offset correction."""
-    voltage_val = (val / 131072) * 2.048 
-    corrected_voltage = max(voltage_val - 0.0053, 0.4) 
-    return (corrected_voltage - 0.4) * (32.4 / (2.0 - 0.4))  
+# def adc_to_wind_speed(val):
+#     """Convert MCP3421 18-bit ADC value to wind speed in m/s with offset correction."""
+#     voltage_val = (val / 131072) * 2.048 
+#     corrected_voltage = max(voltage_val - 0.0053, 0.4) 
+#     return (corrected_voltage - 0.4) * (32.4 / (2.0 - 0.4))  
+
+def adc_to_wind_speed(voltage_val):
+    V = max(voltage_val - 0.00575, 0.4)
+    return ((V - 0.4) / 1.6) * 32.4
+
+# class WindSensor(Sensor):
+#     def __init__(self, i2c=None):
+#         try:
+#             super().__init__(i2c=i2c)
+#             self.adc = ADC.MCP3421(self.i2c, gain=1, resolution=18, continuous_mode=True)
+#             self.adc_channel = AnalogIn(self.adc)
+#             self.failed = False
+#         except Exception as e:
+#             logger.error(f"Wind Sensor Initialization Failed: {e}")
+#             self.failed = True
+
+#     def get_data(self, sensor_type="wind_speed"):
+#         if self.failed:
+#             return None
+#         try:
+#             adc_val = self.adc_channel.value
+#             return adc_to_wind_speed(adc_val)
+#         except Exception as e:
+#             logger.error(f"Failed to get wind sensor data: {e}")
+#             return None
+
+#     def add_data(self, sensor_type="wind_speed"):
+#         if self.failed:
+#             return None
+#         try:
+#             data = self.get_data(sensor_type)
+#             if data is not None:
+#                 self.data_dict.setdefault(sensor_type, []).append(data)
+#             return data
+#         except Exception as e:
+#             logger.error(f"Failed to add wind sensor data: {e}")
+#             return None
 
 class WindSensor(Sensor):
     def __init__(self, i2c=None):
         try:
             super().__init__(i2c=i2c)
-            self.adc = ADC.MCP3421(self.i2c, gain=1, resolution=18, continuous_mode=True)
-            self.adc_channel = AnalogIn(self.adc)
+            self.adc = ADS.ADS1115(self.i2c)
+            self.adc_channel = AnalogIn(self.adc, ADS.P0, ADS.P1)
             self.failed = False
         except Exception as e:
-            logger.error(f"Wind Sensor Initialization Failed: {e}")
+            logger.error(f"Wind Sensor (ADS1115) Initialization Failed: {e}")
             self.failed = True
 
     def get_data(self, sensor_type="wind_speed"):
         if self.failed:
             return None
         try:
-            adc_val = self.adc_channel.value
-            return adc_to_wind_speed(adc_val)
+            voltage = self.adc_channel.voltage
+            return adc_to_wind_speed(voltage)
         except Exception as e:
             logger.error(f"Failed to get wind sensor data: {e}")
             return None
@@ -150,6 +189,7 @@ class WindSensor(Sensor):
         except Exception as e:
             logger.error(f"Failed to add wind sensor data: {e}")
             return None
+
 
 class MultiSensor(Sensor):
     """
