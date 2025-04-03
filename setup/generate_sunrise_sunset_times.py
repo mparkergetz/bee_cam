@@ -1,3 +1,7 @@
+### LOCATIONS
+## WILLOW CREEK 40.93615, -123.64406
+## 
+
 import subprocess
 import sys
 
@@ -25,8 +29,8 @@ latitude = 40.93615
 longitude = -123.64406
 timezone = 'US/Pacific'     
 
-start_date = date(2025, 4, 1)
-end_date = date(2025, 4, 10)
+start_date = date.today()
+end_date = start_date + timedelta(days=365)
 
 location = LocationInfo(name="Custom Location", region="Custom", timezone=timezone,
                         latitude=latitude, longitude=longitude)
@@ -45,3 +49,5 @@ while current <= end_date:
 
 df = pd.DataFrame(data)
 df.to_csv("sun_times.csv", index=False)
+
+print('sun_times.csv: 1 year of times generated')
