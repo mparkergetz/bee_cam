@@ -55,11 +55,6 @@ class MQTTManager:
         self.hb_cursor = self.hb_conn.cursor()
         self._init_heartbeat_db()
 
-        # Logging
-        # log_path = os.path.join(self.package_root, "logs", "mqtt_manager.log")
-        # os.makedirs(os.path.dirname(log_path), exist_ok=True)
-        # logging.basicConfig(filename=log_path, level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-
     def _init_heartbeat_db(self):
         self.hb_cursor.execute("""
             CREATE TABLE IF NOT EXISTS heartbeats (
@@ -82,7 +77,7 @@ class MQTTManager:
         if rc == 0:
             logger.info("Connected to local MQTT broker (heartbeat)")
             client.subscribe(self.heartbeat_topic)
-            logger.info(f"Subscribed to topic: {self.heartbeat_topic}")
+            logger.debug(f"Subscribed to topic: {self.heartbeat_topic}")
         else:
             logger.error(f"Local MQTT connection failed with code {rc}")
 
@@ -105,8 +100,10 @@ class MQTTManager:
             sync_status = "good" if drift <= self.TIME_DRIFT_THRESHOLD else "out of sync"
 
             if sync_status == "out of sync" and self.camera_warnings.get(camera_name) != "out_of_sync":
-                logger.warning(f"Camera {camera_name} clock out of sync by {drift:.2f}s")
+                payload = f"Camera {camera_name} clock out of sync by {drift:.2f}s"
+                logger.warning(payload)
                 self.camera_warnings[camera_name] = "out_of_sync"
+                self.remote_client.publish('alerts', payload, qos=1)
 
             self.hb_cursor.execute("""
                 INSERT INTO heartbeats (camera_name, receipt_time) VALUES (?, ?)
@@ -122,8 +119,10 @@ class MQTTManager:
             self.hb_conn.commit()
 
             if camera_name in self.camera_warnings and sync_status == "good":
-                logger.info(f"Camera {camera_name} has recovered from sync issue.")
+                payload = f"Camera {camera_name} has recovered from sync issue."
+                logger.info(payload)
                 self.camera_warnings.pop(camera_name, None)
+                self.remote_client.publish('alerts', payload, qos=1)
 
         except Exception as e:
             logger.error(f"Error handling heartbeat: {e}")
@@ -144,16 +143,23 @@ class MQTTManager:
                     gap = (now - last_seen).total_seconds()
 
                     if gap > self.TIMEOUT_THRESHOLD and sync_status == "good" and self.camera_warnings.get(camera_name) != "down":
-                        logger.warning(f"{camera_name} is DOWN. Last seen: {last_seen}")
+                        payload = f"{camera_name} is DOWN. Last seen: {last_seen}"
+                        logger.warning(payload)
                         self.camera_warnings[camera_name] = "down"
                         self.hb_cursor.execute("""
                             UPDATE camera_status SET sync_status = ?, camera_on = 0 WHERE camera_name = ?
                         """, ("DOWN", camera_name))
                         self.hb_conn.commit()
+                        self.remote_client.publish('alerts', payload, qos=1)
 
                     elif gap <= self.TIMEOUT_THRESHOLD and self.camera_warnings.get(camera_name) == "down":
-                        logger.info(f"{camera_name} has recovered from DOWN.")
+                        payload = f"{camera_name} has recovered from DOWN."
+                        logger.info(payload)
                         self.camera_warnings.pop(camera_name, None)
+                        self.hb_cursor.execute("""
+                            UPDATE camera_status SET sync_status = ?, camera_on = 1 WHERE camera_name = ?
+                        """, ("good", camera_name))
+                        self.remote_client.publish('alerts', payload, qos=1)
 
             except Exception as e:
                 logger.error(f"Error checking camera status: {e}")
@@ -233,7 +239,7 @@ class MQTTManager:
             self.local_client.connect_async(self.hub_IP, 1883)
             self.local_client.loop_start()
 
-            logger.info("MQTTManager started both local and remote clients.")
+            logger.debug("MQTTManager started both local and remote clients.")
 
             threading.Thread(target=self._monitor_camera_status, daemon=True).start()
             threading.Thread(target=self._send_sensor_data, daemon=True).start()

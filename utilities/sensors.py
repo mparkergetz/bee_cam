@@ -60,8 +60,7 @@ class Sensor:
 
     def add_data(self,sensor_type):
         """
-        Add data into the dictionary under the key of the sensor type
-        Also returns the current data that was recieved in case that wants to be examined
+        Add data into the dictionary, returns the current data
         """
         data = self.get_data(sensor_type)
         if data is not None:
@@ -265,7 +264,7 @@ if __name__ == "__main__":
     sensors = MultiSensor(db_path=db_path, i2c=shared_i2c)
     display = Display(i2c=shared_i2c)
 
-    start_time = time.time()  # Initialize start_time before entering the loop
+    start_time = time.time() 
 
     try:
         while True:

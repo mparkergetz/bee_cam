@@ -6,6 +6,7 @@ from utilities.logger import logger
 from utilities.display import Display
 from utilities.sensors import MultiSensor
 from utilities.mqtt import MQTTManager
+from utilities.wittypi import WittyPi
 from time import sleep
 from datetime import datetime
 import threading
@@ -17,13 +18,39 @@ def run_server():
     config = get_config.dict()
     name = config['general']['name']
     #sensor_int = get_config.getint('communication', 'sensor_int')
-
     MODULE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    #output_dir = os.path.abspath(config['general']['output_dir'])
+    sun_times_csv = os.path.join(MODULE_ROOT, 'setup', 'sun_times.csv')
 
-    # curr_date = os.path.join(output_dir, name, str(datetime.now().strftime("%Y%m%d")))
-    # name_dir = os.path.join(output_dir, name)
-    # os.makedirs(name_dir, exist_ok=True)
+    logger.info("###################### INITIALIZING ##################################")
+
+    # SCHEDULING
+    try:
+        with WittyPi() as wp:
+            if get_config.getboolean('scheduling', 'sun_sched'):
+                logger.debug('setting to sun sched')
+                try:
+                    start_today, stop_today, start_tomorrow = wp.get_sun_times(sun_times_csv)
+                    logger.debug(f'sun times: {start_today}, {stop_today}, {start_tomorrow}')
+                    wp.shutdown_startup(start_today=start_today, stop_today=stop_today, start_tomorrow=start_tomorrow)
+                    logger.debug('WittyPi shutdown_startup complete')
+                except Exception:
+                    logger.warning("Defaulting to config start/stop times")
+            else:
+                try:
+                    start_str = config.get('settings', 'default_start')
+                    stop_str = config.get('settings', 'default_stop')
+
+                    start_time = datetime.strptime(start_str, '%H:%M:%S').time()
+                    stop_time = datetime.strptime(stop_str, '%H:%M:%S').time()
+
+                    start_dt = datetime.combine(datetime.today(), start_time)
+                    stop_dt = datetime.combine(datetime.today(), stop_time)
+
+                    wp.shutdown_startup(start_today=start_dt, stop_today=stop_dt, start_tomorrow=start_dt)
+                except Exception:
+                    logger.warning("Setting default times failed")
+    except Exception as e:
+        logger.warning(f"Could not set WittyPi schedule: {e}")
 
     # Initialize the sensors
     shared_i2c = board.I2C()
@@ -33,15 +60,7 @@ def run_server():
     disp = Display(i2c=shared_i2c)
     disp.display_msg('Initializing')
 
-    # Configure logging
-    # log_dir = os.path.join(MODULE_ROOT, "logs")
-    #print(log_dir)
-    # os.makedirs(log_dir, exist_ok=True)
-    # log_file = os.path.join(log_dir, "server_main.log")
-    # logging.basicConfig(filename=log_file, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
-    logger.info("###################### NEW RUN ##################################")
-    logger.info("Begin logging data")
+    logger.debug("Begin logging data")
 
     # Create thread stop event
     stop_event = threading.Event()

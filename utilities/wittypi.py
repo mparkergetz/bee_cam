@@ -1,5 +1,6 @@
 import time
 import os
+import csv
 from datetime import datetime, timedelta
 from smbus2 import SMBus
 from utilities.logger import logger as base_logger
@@ -51,6 +52,42 @@ class WittyPi:
             logger.warning(f"Invalid RTC values: {e}. Falling back to system time.")
             return datetime.now()
 
+    def get_sun_times(self, csv_path: str) -> tuple[datetime, datetime, datetime]:
+        """
+        Returns (sunrise_today, sunset_today, sunrise_tomorrow) from the CSV.
+        """
+        now = datetime.now()
+        today_str = now.strftime('%Y-%m-%d')
+        tomorrow_str = (now + timedelta(days=1)).strftime('%Y-%m-%d')
+
+        logger.debug(f"Reading sun times from: {csv_path}")
+        logger.debug(f"Today: {today_str}, Tomorrow: {tomorrow_str}")
+
+        try:
+            with open(csv_path, newline='') as f:
+                reader = csv.DictReader(f)
+                sun_data = {row['date']: row for row in reader}
+        except FileNotFoundError:
+            logger.error(f"CSV file not found: {csv_path}")
+            raise
+
+        try:
+            today_row = sun_data[today_str]
+            tomorrow_row = sun_data[tomorrow_str]
+
+            sunrise_today = datetime.strptime(f"{today_str} {today_row['sunrise']}", "%Y-%m-%d %H:%M:%S") + timedelta(hours=1)
+            sunset_today = datetime.strptime(f"{today_str} {today_row['sunset']}", "%Y-%m-%d %H:%M:%S") - timedelta(hours=1)
+            sunrise_tomorrow = datetime.strptime(f"{tomorrow_str} {tomorrow_row['sunrise']}", "%Y-%m-%d %H:%M:%S") + timedelta(hours=1)
+            logger.debug(f'Sunrise today: {sunrise_today}, Sunset today: {sunset_today}, Sunrise_tomorrow: {sunrise_tomorrow}')
+            return sunrise_today, sunset_today, sunrise_tomorrow
+
+        except KeyError as e:
+            logger.error(f"Missing sun data for: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Failed to parse sun times: {e}")
+            raise
+
     def schedule_shutdown(self, shutdown_time: datetime):
         shutdown_time += timedelta(minutes=5)
         shutdown_values = [
@@ -64,7 +101,7 @@ class WittyPi:
         status = self.bcd_to_int(self._bus.read_byte_data(8, 40))
         scheduled = self._read_bcd_data(32, 5)
         dt = datetime(shutdown_time.year, shutdown_time.month, scheduled[3], scheduled[2], scheduled[1], scheduled[0])
-        logger.info(f"Shutdown time scheduled at {dt}. Status: {'Triggered' if status else 'Not Triggered'}")
+        logger.debug(f"Shutdown time scheduled at {dt}. Status: {'Triggered' if status else 'Not Triggered'}")
 
     def schedule_startup(self, startup_time: datetime):
         startup_values = [
@@ -78,7 +115,7 @@ class WittyPi:
         status = self.bcd_to_int(self._bus.read_byte_data(8, 39))
         scheduled = self._read_bcd_data(27, 5)
         dt = datetime(startup_time.year, startup_time.month, scheduled[3], scheduled[2], scheduled[1], scheduled[0])
-        logger.info(f"Startup time scheduled at {dt}. Status: {'Triggered' if status else 'Not Triggered'}")
+        logger.debug(f"Startup time scheduled at {dt}. Status: {'Triggered' if status else 'Not Triggered'}")
 
     def shutdown_in(self, delay_minutes: int = 5):
         shutdown_time = self.get_current_time() + timedelta(minutes=delay_minutes)
@@ -112,24 +149,32 @@ class WittyPi:
 
         return self.latest_temp
 
-    def shutdown_startup(self, start_str: str, end_str: str) -> datetime:
+    def shutdown_startup(self, start_today: datetime, stop_today: datetime, start_tomorrow: datetime) -> datetime:
         """
-        Schedules shutdown and startup based on two time ranges (e.g. '5,0,0' and '8,0,0')
+        Schedules shutdown and startup between two datetime ranges.
+        If current time is before start, shuts down now and starts at start_time.
+        If within the range, shuts down at end_time and schedules startup at tomorrow start_time.
+        If past the range, shuts down now and schedules startup at start_tomorrow.
         """
         now = datetime.now()
-        start_h, start_m, start_s = map(int, start_str.split(","))
-        end_h, end_m, end_s = map(int, end_str.split(","))
-        start_dt = now.replace(hour=start_h, minute=start_m, second=start_s)
-        end_dt = now.replace(hour=end_h, minute=end_m, second=end_s)
+        mins_until_start = (start_today - now).total_seconds() / 60
 
-        if now < start_dt:
-            self.schedule_shutdown(now)
-            self.schedule_startup(start_dt)
-        elif start_dt <= now < end_dt:
-            self.schedule_shutdown(end_dt)
-            self.set_startup_at(start_h, start_m, start_s)
+        if now < start_today:
+            if mins_until_start > 5:
+                self.shutdown_in(delay_minutes=5)
+                self.schedule_startup(start_today)
+                logger.info(f"Shutdown scheduled in 5 min, startup at {start_today}")
+            else: # Skip shutdown, startup is too soon
+                self.schedule_shutdown(stop_today)
+                self.set_startup_at(start_tomorrow.hour, start_tomorrow.minute, start_tomorrow.second)
+                logger.info(f"Startup is in {mins_until_start:.1f} min — skipping shutdown, next shutdown at {stop_today}")
+        elif start_today <= now < stop_today:
+            self.schedule_shutdown(stop_today)
+            self.set_startup_at(start_tomorrow.hour, start_tomorrow.minute, start_tomorrow.second)
+            logger.info(f"Within active window — shutdown at {stop_today}, restart at {start_tomorrow}")
         else:
-            self.schedule_shutdown(now)
-            self.set_startup_at(start_h, start_m, start_s)
+            self.shutdown_in(delay_minutes=5)
+            self.set_startup_at(start_tomorrow.hour, start_tomorrow.minute, start_tomorrow.second)
+            logger.info(f"Outside today's range — shutdown in 5 min, restart at {start_tomorrow}")
 
         return self.get_current_time()
