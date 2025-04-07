@@ -15,6 +15,8 @@ class MQTTManager:
     def __init__(self):
         self.config = Config()
         self.unit_name = self.config['general']['name']
+        self.is_remote_connected = False
+        self.is_local_connected = False
 
         self.package_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
         self.sensor_db_path = os.path.join(self.package_root, self.config['communication']['sensor_db'])
@@ -74,6 +76,7 @@ class MQTTManager:
         self.hb_conn.commit()
 
     def _on_local_connect(self, client, userdata, flags, rc, properties=None):
+        self.is_local_connected = rc == 0
         if rc == 0:
             logger.info("Connected to local MQTT broker (heartbeat)")
             client.subscribe(self.heartbeat_topic)
@@ -82,10 +85,26 @@ class MQTTManager:
             logger.error(f"Local MQTT connection failed with code {rc}")
 
     def _on_remote_connect(self, client, userdata, flags, rc, properties=None):
+        self.is_remote_connected = rc == 0
         if rc == 0:
             logger.info("Connected to remote MQTT broker (EMQX)")
         else:
             logger.error(f"Remote MQTT connection failed with code {rc}")
+
+    def get_network_status(self):
+        try:
+            self.hb_cursor.execute("SELECT camera_name FROM camera_status WHERE camera_on = 1")
+            active_cameras = [
+            ''.join(filter(str.isdigit, row[0])) for row in self.hb_cursor.fetchall()
+            ]
+        except Exception as e:
+            logger.warning(f"Failed to fetch active camera list: {e}")
+            active_cameras = []
+
+        return {
+            "cell": self.is_remote_connected,
+            "local": active_cameras
+        }
 
     def _on_heartbeat(self, client, userdata, msg):
         try:

@@ -23,6 +23,14 @@ def run_server():
 
     logger.info("###################### INITIALIZING ##################################")
 
+    # Initialize the sensors
+    shared_i2c = board.I2C()
+    sensors = MultiSensor(i2c=shared_i2c)
+
+    # Initialize the display
+    disp = Display(i2c=shared_i2c)
+    disp.display_msg('Initializing')
+
     # SCHEDULING
     try:
         with WittyPi() as wp:
@@ -33,6 +41,7 @@ def run_server():
                     logger.debug(f'sun times: {start_today}, {stop_today}, {start_tomorrow}')
                     wp.shutdown_startup(start_today=start_today, stop_today=stop_today, start_tomorrow=start_tomorrow)
                     logger.debug('WittyPi shutdown_startup complete')
+                    disp.display_msg(f'Startup:\n{start_today}\nShutdown:\n{stop_today}')
                 except Exception:
                     logger.warning("Defaulting to config start/stop times")
             else:
@@ -52,14 +61,6 @@ def run_server():
     except Exception as e:
         logger.warning(f"Could not set WittyPi schedule: {e}")
 
-    # Initialize the sensors
-    shared_i2c = board.I2C()
-    sensors = MultiSensor(i2c=shared_i2c)
-
-    # Initialize the display
-    disp = Display(i2c=shared_i2c)
-    disp.display_msg('Initializing')
-
     logger.debug("Begin logging data")
 
     # Create thread stop event
@@ -75,14 +76,18 @@ def run_server():
         display_interval = 1
         while not stop_event.is_set():
             readings = sensors.latest_readings
+            net_status = mqtt_mgmt.get_network_status()
             if None not in readings.values():
                 disp.display_sensor_data(
                     readings["temperature"],
                     readings["relative_humidity"],
                     readings["pressure"],
-                    readings["wind_speed"]
+                    readings["wind_speed"],
+                    net_status
                 )
             time.sleep(display_interval)
+
+    sleep(5)
 
     mqtt_mgmt = MQTTManager()
     mqtt_mgmt.start()
@@ -98,16 +103,16 @@ def run_server():
 
         while True:
             readings = sensors.latest_readings
-
-            disp.display_sensor_data(
-                readings["temperature"],
-                readings["relative_humidity"],
-                readings["pressure"],
-                readings["wind_speed"]
-            )
+            # net_status = mqtt_mgmt.get_network_status()
+            # disp.display_sensor_data(
+            #     readings["temperature"],
+            #     readings["relative_humidity"],
+            #     readings["pressure"],
+            #     readings["wind_speed"],
+            #     net_status
+            # )
 
             if (time.monotonic() - curr_time) >= 10:
-                #print(psutil.cpu_percent(interval=1), "% CPU Usage")
                 sensors.insert_into_db()
                 curr_time = time.monotonic()
             

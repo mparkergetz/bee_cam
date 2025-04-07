@@ -22,7 +22,7 @@ class Display:
             print(f'Display: {e}', file=sys.stderr)
             self.enabled = False
         
-    def show_message(self, msg, line_height=14):
+    def show_message(self, msg, line_height=12):
         if not self.enabled:
             return
         image = Image.new('1', (self.width, self.height))
@@ -30,29 +30,35 @@ class Display:
         draw.rectangle((0, 0, self.width, self.height), outline=0, fill=0)
         
         x, y = 0, 0
-        for item in msg:
+        for i, item in enumerate(msg):
             draw.text((x, y), item, font=self.font, fill=255)
             y += line_height
+            if i == 0:
+                y += 2
 
         self._disp.image(image)
         self._disp.show()
 
-    def display_sensor_data(self, temperature, humidity, pressure, wind_speed):
+    def display_sensor_data(self, temperature, humidity, pressure, wind_speed, net_status=None):
         if not self.enabled:
             return
 
-        temp_str = f'Temp: {temperature:.1f} C' if temperature is not None else 'Temp: N/A'
-        humidity_str = f'Humid: {humidity:.1f}%' if humidity is not None else 'Humid: N/A'
-        pressure_str = f'Pres: {pressure:.1f} hPa' if pressure is not None else 'Pres: N/A'
-        wind_speed_str = f'Wind: {wind_speed:.1f} m/s' if wind_speed is not None else 'Wind: N/A'
+        temp_str = f'{temperature:.1f} C' if temperature is not None else 'Temp: N/A'
+        humidity_str = f'{humidity:.1f}% RH' if humidity is not None else 'Humid: N/A'
+        pressure_str = f'{pressure:.1f} hPa' if pressure is not None else 'Pres: N/A'
+        wind_speed_str = f'{wind_speed:.1f} m/s' if wind_speed is not None else 'Wind: N/A'
+
+        cell_status = "Connected" if net_status and net_status.get("cell") else "Down"
+        local_cams = net_status.get("local", []) if net_status else []
+        local_status = ",".join(local_cams) if local_cams else "None"
 
 
         msg = [
             time.strftime('%Y-%m-%d | %H:%M:%S'),
-            temp_str,
-            humidity_str,
-            pressure_str,
-            wind_speed_str
+            f'{temp_str} | {humidity_str}',
+            f'{pressure_str} | {wind_speed_str}',
+            f'Cell: {cell_status}',
+            f'LAN: {local_status}'
         ]
         
         self.show_message(msg)
@@ -62,15 +68,17 @@ class Display:
         if not self.enabled:
             return
 
+        base = [time.strftime('%Y-%m-%d | %H:%M:%S')]
+        
         if img_count is None:
-            msg = [time.strftime('%Y-%m-%d | %H:%M:%S'),
-                f'{status}',
-                f'IP: {self.ip}']
+            lines = status.splitlines()
+            msg = base + lines
         else:
-            msg = [time.strftime('%Y-%m-%d | %H:%M:%S'),
-                f'{status}',
+            msg = base + [
+                status,
                 f'Image count: {img_count}',
-                f'IP: {self.ip}']
+                f'IP: {self.ip}'
+            ]
 
         self.show_message(msg)
 
