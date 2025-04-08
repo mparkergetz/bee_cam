@@ -103,19 +103,9 @@ def run_server():
 
         while True:
             readings = sensors.latest_readings
-            # net_status = mqtt_mgmt.get_network_status()
-            # disp.display_sensor_data(
-            #     readings["temperature"],
-            #     readings["relative_humidity"],
-            #     readings["pressure"],
-            #     readings["wind_speed"],
-            #     net_status
-            # )
-
             if (time.monotonic() - curr_time) >= 10:
                 sensors.insert_into_db()
                 curr_time = time.monotonic()
-            
             time.sleep(0.1)
 
     except KeyboardInterrupt:

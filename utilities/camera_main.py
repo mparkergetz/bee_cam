@@ -7,7 +7,7 @@ logger = base_logger.getChild("Camera")
 from utilities.config import Config
 from utilities.display import Display
 from utilities.sensors import MultiSensor
-from utilities.mqtt import send_camera_heartbeat, send_camera_shutdown
+from utilities.mqtt import MQTTManager
 import board
 
 from picamera2 import Picamera2
@@ -17,6 +17,8 @@ import threading
 import time
 
 def run_camera():
+    logger.info("###################### INITIALIZING ##################################")
+
     config = Config()
     name = config['general']['name'] 
 
@@ -36,12 +38,10 @@ def run_camera():
     os.makedirs(path_image_dat, exist_ok=True)
     
     shared_i2c = board.I2C()
-    sensors = MultiSensor(curr_date, i2c=shared_i2c) # Initialize the sensors
+    sensors = MultiSensor(i2c=shared_i2c) # Initialize the sensors
 
     disp = Display()
     disp.display_msg('Initializing')
-
-    logger.info("###################### NEW RUN ##################################")
 
     MAX_RETRIES = 3
 
@@ -83,7 +83,7 @@ def run_camera():
         if heartbeat_thread.is_alive():
             heartbeat_thread.join()
         if len(list(sensors.data_dict.values())[0]) != 0:
-            sensors.append_to_csv()
+            sensors.insert_into_db()
         sensors.sensors_deinit()
         logger.info("Sensors deinit, Exiting.")
         send_camera_shutdown()
@@ -94,7 +94,8 @@ def run_camera():
     sensor_thread = threading.Thread(target = sensor_data, daemon=True)
     sensor_thread.start()
 
-    heartbeat_thread = threading.Thread(target=send_camera_heartbeat, args=(stop_event,), daemon=True)
+    mqtt = MQTTManager()
+    heartbeat_thread = threading.Thread(target=mqtt.send_camera_heartbeat, args=(stop_event,))
     heartbeat_thread.start()
 
     event = threading.Event()
@@ -125,7 +126,7 @@ def run_camera():
         
             # if wanting a delay in saving sensor data:
             if (time.time()-curr_time) >= 30:
-                sensors.append_to_csv()
+                sensors.insert_into_db()
                 curr_time = time.time()
             sleep(.7)
 
@@ -134,7 +135,7 @@ def run_camera():
             sensor_thread.join() 
 
             if len(list(sensors.data_dict.values())[0]) != 0: # if list is not empty then add data
-                sensors.append_to_csv()
+                sensors.insert_into_db()
             
             disp.display_msg('Interrupted', img_count)
             logger.info("KeyboardInterrupt")
