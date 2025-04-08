@@ -253,38 +253,55 @@ class MQTTManager:
 
             time.sleep(60)
 
-    def send_camera_heartbeat(stop_event):
+    def send_camera_heartbeat(self, stop_event):
         while not stop_event.is_set():
             timestamp = datetime.now().isoformat()
             message = json.dumps({
-                "name": UNIT_NAME,
+                "name": self.unit_name,
                 "timestamp": timestamp,
                 "cam_on": 1
             })
 
             try:
-                connect_mqtt()
-                mqtt_client.publish(HEARTBEAT_TOPIC, message)
+                self.local_client.publish(self.heartbeat_topic, message)
                 logger.debug(f"Heartbeat sent: {message}")
             except Exception as e:
                 logger.error(f"Failed to send heartbeat: {e}")
 
-            if stop_event.wait(10):  
-                break    
+            if stop_event.wait(10):
+                break
 
-    def _send_camera_shutdown():
+    def send_camera_shutdown(self):
         try:
-            connect_mqtt()
-            mqtt_client.publish(TOPIC, json.dumps({
-                "name": UNIT_NAME,
+            self.local_client.publish(self.heartbeat_topic, json.dumps({
+                "name": self.unit_name,
                 "timestamp": datetime.now().isoformat(),
-                "cam_on": 0 
+                "cam_on": 0
             }))
-
-            mqtt_client.disconnect()
-            logger.info(f"Camera_main stopping: {UNIT_NAME}")
+            self.local_client.disconnect()
+            logger.info(f"Camera_main stopping: {self.unit_name}")
         except Exception as e:
             logger.error(f"Failed to send final offline heartbeat: {e}")
+
+    def is_camera_running(self):
+        return any("camera_main.py" in line for line in os.popen("ps aux"))
+
+    def monitor_camera_main(self):
+        topic = "heartbeat_alert"
+        while True:
+            if not self.is_camera_running():
+                timestamp = datetime.now().isoformat()
+                message = json.dumps({
+                    "name": self.unit_name,
+                    "timestamp": timestamp,
+                    "error": "camera_main.py is NOT running!"
+                })
+                try:
+                    self.remote_client.publish(topic, message)
+                    logger.warning(f"ALERT SENT: {message}")
+                except Exception as e:
+                    logger.error(f"Failed to send alert: {e}")
+            time.sleep(60)          
 
     def start(self):
         try:
@@ -306,12 +323,4 @@ class MQTTManager:
             logger.error(f"Failed to start MQTTManager: {e}")
 
 if __name__ == "__main__":
-    print("[MQTTManager] Starting test")
-    mqtt_mgmt = MQTTManager()
-    mqtt_mgmt.start()
-
-    try:
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        print("\n[MQTTManager] Interrupted")
+    MonitorCameraMain()
