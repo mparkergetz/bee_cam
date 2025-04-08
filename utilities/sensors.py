@@ -40,6 +40,12 @@ if mode == 'server':
     import adafruit_ads1x15.ads1115 as ADS
     from adafruit_ads1x15.analog_in import AnalogIn
 
+elif mode == 'camera':
+    import adafruit_veml7700 # lux
+
+else:
+    logger.warning('Unrecognized operation mode')
+
 class Sensor:
     data_dict = {"name": [], "time": []}
     def __init__(self, device=None, i2c=None):
@@ -148,6 +154,21 @@ class WindSensor(Sensor):
             logger.error(f"Failed to add wind sensor data: {e}")
             return None
 
+class LuxSensor(Sensor):
+    def __init__(self, i2c=None):
+        try:
+            sensor = adafruit_veml7700.VEML7700(i2c if i2c else board.I2C())
+            super().__init__(sensor, i2c)
+            self.sensor_types = ['lux']
+        except Exception as e:
+            logger.error(f"Lux Sensor (VEML7700) Initialization Failed: {e}")
+            self.failed = True
+
+    def lux_data(self):
+        if self.failed:
+            return None
+        return self.add_data('lux')
+
 class MultiSensor(Sensor):
     """
     Class that holds the various different sensors for acquiring data
@@ -181,7 +202,21 @@ class MultiSensor(Sensor):
             """)
             self.sql_conn.commit()
 
-        #elif mode == 'camera':  # ADD LUX DB DATA SAVE HERE
+        if mode == 'camera':
+            self._lux = LuxSensor(i2c=i2c)
+
+            self.sql_conn = sqlite3.connect(db_path, check_same_thread=False)
+            self.sql_cursor = self.sql_conn.cursor()
+            self.sql_cursor.execute("""
+                CREATE TABLE IF NOT EXISTS sensor_data (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT,
+                    time TEXT,
+                    lux REAL,
+                    internal_temp REAL
+                )
+            """)
+            self.sql_conn.commit()
             
         # with WittyPi() as witty: ### REMOVED TO CLEAN, UPTIME CONTROLLED EXTERNALLY
         #     self._shutdown_dt = witty.get_shutdown_datetime() 
@@ -213,6 +248,10 @@ class MultiSensor(Sensor):
             for k, v in self.latest_readings.items():
                 self.data_dict.setdefault(k, []).append(v)
 
+        if mode == 'camera':
+            lux = self._lux.lux_data()
+            self.data_dict.setdefault("lux", []).append(round(lux, 2) if lux is not None else None)
+
         if hasattr(self, "wittypi"):
             with self.wittypi as wp:
                 internal_temp_data = wp.get_internal_temperature()
@@ -226,29 +265,52 @@ class MultiSensor(Sensor):
         #     raise ShutdownTime
 
     def insert_into_db(self):
-        try:
-            len_list = len(next(iter(self.data_dict.values())))
-            for i in range(len_list):
-                row = {k: self.data_dict[k][i] for k in self.data_dict}
-                self.sql_cursor.execute("""
-                    INSERT INTO sensor_data (name, time, temperature, relative_humidity, pressure, wind_speed, internal_temp)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    row.get("name"),
-                    row.get("time"),
-                    row.get("temperature"),
-                    row.get("relative_humidity"),
-                    row.get("pressure"),
-                    row.get("wind_speed"),
-                    row.get("internal_temp")
-                ))
-            self.sql_conn.commit()
+        if mode == 'server':
+            try:
+                len_list = len(next(iter(self.data_dict.values())))
+                for i in range(len_list):
+                    row = {k: self.data_dict[k][i] for k in self.data_dict}
+                    self.sql_cursor.execute("""
+                        INSERT INTO sensor_data (name, time, temperature, relative_humidity, pressure, wind_speed, internal_temp)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        row.get("name"),
+                        row.get("time"),
+                        row.get("temperature"),
+                        row.get("relative_humidity"),
+                        row.get("pressure"),
+                        row.get("wind_speed"),
+                        row.get("internal_temp")
+                    ))
+                self.sql_conn.commit()
 
-            for k in self.data_dict:
-                self.data_dict[k] = []
+                for k in self.data_dict:
+                    self.data_dict[k] = []
 
-        except Exception as e:
-            print(f"An error occurred while inserting into DB: {e}")
+            except Exception as e:
+                print(f"An error occurred while inserting into DB: {e}")
+
+        else:
+            try:
+                len_list = len(next(iter(self.data_dict.values())))
+                for i in range(len_list):
+                    row = {k: self.data_dict[k][i] for k in self.data_dict}
+                    self.sql_cursor.execute("""
+                        INSERT INTO sensor_data (name, time, lux, internal_temp)
+                        VALUES (?, ?, ?, ?)
+                    """, (
+                        row.get("name"),
+                        row.get("time"),
+                        row.get("lux"),
+                        row.get("internal_temp")
+                    ))
+                self.sql_conn.commit()
+
+                for k in self.data_dict:
+                    self.data_dict[k] = []
+
+            except Exception as e:
+                print(f"An error occurred while inserting into DB: {e}")
 
     def sensors_deinit(self):
         if hasattr(self, '_temp_rh'): self._temp_rh.sensor_deinit()
