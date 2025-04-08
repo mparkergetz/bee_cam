@@ -55,8 +55,8 @@ class Display:
 
         msg = [
             time.strftime('%Y-%m-%d | %H:%M:%S'),
-            f'{temp_str} | {humidity_str}',
-            f'{pressure_str} | {wind_speed_str}',
+            f'{temp_str} | {pressure_str}',
+            f'{humidity_str} | {wind_speed_str}',
             f'Cell: {cell_status}',
             f'LAN: {local_status}'
         ]

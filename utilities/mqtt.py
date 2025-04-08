@@ -36,6 +36,7 @@ class MQTTManager:
 
         self.last_seen_cache = {}
         self.camera_warnings = {}
+        self.camera_sync_status = {}
 
         # Remote client (EMQX)
         self.remote_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
@@ -107,6 +108,8 @@ class MQTTManager:
         }
 
     def _on_heartbeat(self, client, userdata, msg):
+        cursor = self.hb_conn.cursor()
+
         try:
             logger.debug(f"[HEARTBEAT RECEIVED] Raw payload: {msg.payload}")
             data = json.loads(msg.payload.decode())
@@ -118,16 +121,16 @@ class MQTTManager:
             drift = abs((now - timestamp).total_seconds())
             sync_status = "good" if drift <= self.TIME_DRIFT_THRESHOLD else "out of sync"
 
-            if sync_status == "out of sync" and self.camera_warnings.get(camera_name) != "out_of_sync":
-                payload = f"Camera {camera_name} clock out of sync by {drift:.2f}s"
+            if sync_status == "out of sync" and self.camera_sync_status.get(camera_name) != "out_of_sync":
+                payload = f"{camera_name} clock out of sync by {drift:.2f}s"
                 logger.warning(payload)
-                self.camera_warnings[camera_name] = "out_of_sync"
+                self.camera_sync_status[camera_name] = "out_of_sync"
                 self.remote_client.publish('alerts', payload, qos=1)
 
-            self.hb_cursor.execute("""
+            cursor.execute("""
                 INSERT INTO heartbeats (camera_name, receipt_time) VALUES (?, ?)
             """, (camera_name, now.isoformat()))
-            self.hb_cursor.execute("""
+            cursor.execute("""
                 INSERT INTO camera_status (camera_name, last_seen, sync_status, camera_on)
                 VALUES (?, ?, ?, ?)
                 ON CONFLICT(camera_name) DO UPDATE SET 
@@ -137,24 +140,26 @@ class MQTTManager:
             """, (camera_name, now.isoformat(), sync_status, camera_on))
             self.hb_conn.commit()
 
-            if camera_name in self.camera_warnings and sync_status == "good":
-                payload = f"Camera {camera_name} has recovered from sync issue."
+            if camera_name in self.camera_sync_status and sync_status == "good":
+                payload = f"{camera_name} has recovered from sync issue."
                 logger.info(payload)
-                self.camera_warnings.pop(camera_name, None)
+                self.camera_sync_status.pop(camera_name, None)
                 self.remote_client.publish('alerts', payload, qos=1)
 
         except Exception as e:
             logger.error(f"Error handling heartbeat: {e}")
 
     def _monitor_camera_status(self):
+        cursor = self.hb_conn.cursor()
+
         while True:
             if (datetime.now() - self.startup_time).total_seconds() < self.STARTUP_GRACE_PERIOD:
                 time.sleep(5)
                 continue
 
             try:
-                self.hb_cursor.execute("SELECT camera_name, last_seen, sync_status FROM camera_status")
-                rows = self.hb_cursor.fetchall()
+                cursor.execute("SELECT camera_name, last_seen, sync_status FROM camera_status")
+                rows = cursor.fetchall()
                 now = datetime.now()
 
                 for camera_name, last_seen_str, sync_status in rows:
@@ -165,19 +170,20 @@ class MQTTManager:
                         payload = f"{camera_name} is DOWN. Last seen: {last_seen}"
                         logger.warning(payload)
                         self.camera_warnings[camera_name] = "down"
-                        self.hb_cursor.execute("""
+                        cursor.execute("""
                             UPDATE camera_status SET sync_status = ?, camera_on = 0 WHERE camera_name = ?
                         """, ("DOWN", camera_name))
                         self.hb_conn.commit()
                         self.remote_client.publish('alerts', payload, qos=1)
 
                     elif gap <= self.TIMEOUT_THRESHOLD and self.camera_warnings.get(camera_name) == "down":
-                        payload = f"{camera_name} has recovered from DOWN."
+                        payload = f"{camera_name} has recovered."
                         logger.info(payload)
                         self.camera_warnings.pop(camera_name, None)
-                        self.hb_cursor.execute("""
+                        cursor.execute("""
                             UPDATE camera_status SET sync_status = ?, camera_on = 1 WHERE camera_name = ?
                         """, ("good", camera_name))
+                        self.hb_conn.commit()
                         self.remote_client.publish('alerts', payload, qos=1)
 
             except Exception as e:
@@ -246,6 +252,39 @@ class MQTTManager:
                 logger.warning(f"Failed to send camera status: {e}")
 
             time.sleep(60)
+
+    def send_camera_heartbeat(stop_event):
+        while not stop_event.is_set():
+            timestamp = datetime.now().isoformat()
+            message = json.dumps({
+                "name": UNIT_NAME,
+                "timestamp": timestamp,
+                "cam_on": 1
+            })
+
+            try:
+                connect_mqtt()
+                mqtt_client.publish(HEARTBEAT_TOPIC, message)
+                logger.debug(f"Heartbeat sent: {message}")
+            except Exception as e:
+                logger.error(f"Failed to send heartbeat: {e}")
+
+            if stop_event.wait(10):  
+                break    
+
+    def _send_camera_shutdown():
+        try:
+            connect_mqtt()
+            mqtt_client.publish(TOPIC, json.dumps({
+                "name": UNIT_NAME,
+                "timestamp": datetime.now().isoformat(),
+                "cam_on": 0 
+            }))
+
+            mqtt_client.disconnect()
+            logger.info(f"Camera_main stopping: {UNIT_NAME}")
+        except Exception as e:
+            logger.error(f"Failed to send final offline heartbeat: {e}")
 
     def start(self):
         try:
