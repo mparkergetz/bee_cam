@@ -7,7 +7,7 @@ logger = base_logger.getChild("Camera")
 from utilities.config import Config
 from utilities.display import Display
 from utilities.sensors import MultiSensor
-from utilities.mqtt import send_camera_heartbeat, send_camera_shutdown
+from utilities.mqtt import MQTTManager
 import board
 
 from picamera2 import Picamera2
@@ -94,7 +94,8 @@ def run_camera():
     sensor_thread = threading.Thread(target = sensor_data, daemon=True)
     sensor_thread.start()
 
-    heartbeat_thread = threading.Thread(target=send_camera_heartbeat, args=(stop_event,), daemon=True)
+    mqtt = MQTTManager()
+    heartbeat_thread = threading.Thread(target=mqtt.send_camera_heartbeat, args=(stop_event,))
     heartbeat_thread.start()
 
     event = threading.Event()
