@@ -1,4 +1,5 @@
 import os
+import psutil
 import json
 import time
 import sqlite3
@@ -307,8 +308,15 @@ class MQTTManager:
         except Exception as e:
             logger.error(f"Failed to send final offline heartbeat: {e}")
 
+
     def is_camera_running(self):
-        return any("camera_main.py" in line for line in os.popen("ps aux"))
+        for proc in psutil.process_iter(['pid', 'cmdline']):
+            try:
+                if proc.info['cmdline'] and 'camera_main.py' in ' '.join(proc.info['cmdline']):
+                    return True
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+        return False
 
     def monitor_camera_main(self):
         topic = "heartbeat_alert"
