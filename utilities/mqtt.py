@@ -49,7 +49,7 @@ class MQTTManager:
         # Local client (LAN heartbeat)
         self.local_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
         self.local_client.on_connect = self._on_local_connect
-        self.local_client.on_message = self._on_heartbeat
+        self.local_client.on_message = self._on_local_message
 
         # DB connections
         self.sensor_conn = sqlite3.connect(self.sensor_db_path, check_same_thread=False)

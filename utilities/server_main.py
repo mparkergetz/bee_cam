@@ -77,8 +77,10 @@ def run_server():
         if len(list(sensors.data_dict.values())[0]) != 0:
             sensors.insert_into_db()
 
-        mqtt_mgmt.client.loop_stop()
-        mqtt_mgmt.client.disconnect()
+        mqtt_mgmt.remote_client.loop_stop()
+        mqtt_mgmt.local_client.loop_stop()
+        mqtt_mgmt.remote_client.disconnect()
+        mqtt_mgmt.local_client.disconnect()
 
         logger.info(f"Script ended: {reason}")
 
