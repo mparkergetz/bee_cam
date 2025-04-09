@@ -264,7 +264,7 @@ class MQTTManager:
 
             try:
                 self.local_client.publish(self.heartbeat_topic, message)
-                logger.debug(f"Heartbeat sent: {message}")
+                logger.info(f"Heartbeat sent: {message}")
             except Exception as e:
                 logger.error(f"Failed to send heartbeat: {e}")
 
@@ -322,6 +322,14 @@ class MQTTManager:
             threading.Thread(target=self._send_camera_status, daemon=True).start()
         except Exception as e:
             logger.error(f"Failed to start MQTTManager: {e}")
+
+    def connect_local(self):
+        try:
+            self.local_client.connect_async(self.hub_IP, 1883)
+            self.local_client.loop_start()
+            logger.info("Local MQTT client connected (from connect_local)")
+        except Exception as e:
+            logger.error(f"Error connecting local MQTT: {e}")
 
 if __name__ == "__main__":
     MonitorCameraMain()

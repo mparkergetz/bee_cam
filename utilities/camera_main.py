@@ -103,6 +103,7 @@ def run_camera():
     sensor_thread.start()
 
     mqtt = MQTTManager()
+    mqtt.connect_local()
     heartbeat_thread = threading.Thread(target=mqtt.send_camera_heartbeat, args=(stop_event,))
     heartbeat_thread.start()
 
