@@ -79,7 +79,7 @@ class MQTTManager:
     def _on_local_connect(self, client, userdata, flags, rc, properties=None):
         self.is_local_connected = rc == 0
         if rc == 0:
-            logger.info("Connected to local MQTT broker (heartbeat)")
+            logger.info(f"Connected to local MQTT broker ({self.heartbeat_topic})")
             client.subscribe(self.heartbeat_topic)
             logger.debug(f"Subscribed to topic: {self.heartbeat_topic}")
         else:
@@ -122,7 +122,7 @@ class MQTTManager:
             sync_status = "good" if drift <= self.TIME_DRIFT_THRESHOLD else "out of sync"
 
             if sync_status == "out of sync" and self.camera_sync_status.get(camera_name) != "out_of_sync":
-                payload = f"{camera_name} clock out of sync by {drift:.2f}s"
+                payload = f"{camera_name} clock OUT OF SYNC by {drift:.2f}s"
                 logger.warning(payload)
                 self.camera_sync_status[camera_name] = "out_of_sync"
                 self.remote_client.publish('alerts', payload, qos=1)
@@ -141,7 +141,7 @@ class MQTTManager:
             self.hb_conn.commit()
 
             if camera_name in self.camera_sync_status and sync_status == "good":
-                payload = f"{camera_name} has recovered from sync issue."
+                payload = f"{camera_name} is IN SYNC."
                 logger.info(payload)
                 self.camera_sync_status.pop(camera_name, None)
                 self.remote_client.publish('alerts', payload, qos=1)
@@ -177,7 +177,7 @@ class MQTTManager:
                         self.remote_client.publish('alerts', payload, qos=1)
 
                     elif gap <= self.TIMEOUT_THRESHOLD and self.camera_warnings.get(camera_name) == "down":
-                        payload = f"{camera_name} has recovered."
+                        payload = f"{camera_name} is UP."
                         logger.info(payload)
                         self.camera_warnings.pop(camera_name, None)
                         cursor.execute("""
@@ -312,6 +312,7 @@ class MQTTManager:
 
             # Local client setup
             self.local_client.connect_async(self.hub_IP, 1883)
+            logger.info("Trying to connect to local MQTT broker...")
             self.local_client.loop_start()
 
             logger.debug("MQTTManager started both local and remote clients.")

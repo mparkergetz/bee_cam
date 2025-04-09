@@ -8,6 +8,7 @@ from utilities.config import Config
 from utilities.display import Display
 from utilities.sensors import MultiSensor
 from utilities.mqtt import MQTTManager
+from utilities.wittypi import WittyPi
 import board
 
 from picamera2 import Picamera2
@@ -43,7 +44,14 @@ def run_camera():
     disp = Display()
     disp.display_msg('Initializing')
 
-    MAX_RETRIES = 3
+    # SCHEDULING
+    try:
+        with WittyPi() as wp:
+            wp.apply_scheduling(get_config, sun_times_csv, disp)
+    except Exception as e:
+        logger.warning(f"Could not apply WittyPi scheduling: {e}")
+
+    MAX_RETRIES = 3 # MAX CAMERA TIMEOUTS
 
     for attempt in range(MAX_RETRIES):
         try:

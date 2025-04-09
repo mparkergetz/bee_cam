@@ -3,6 +3,7 @@ import os
 import csv
 from datetime import datetime, timedelta
 from smbus2 import SMBus
+from utilities.config import Config
 from utilities.logger import logger as base_logger
 logger = base_logger.getChild("WittyPi")
 
@@ -178,3 +179,27 @@ class WittyPi:
             logger.info(f"Outside today's range — shutdown in 5 min, restart at {start_tomorrow}")
 
         return self.get_current_time()
+
+    def apply_scheduling(self, config: Config, sun_times_csv: str, disp=None):
+        try:
+            if config.getboolean('scheduling', 'sun_sched'):
+                logger.debug('Using sunrise/sunset schedule')
+                start_today, stop_today, start_tomorrow = self.get_sun_times(sun_times_csv)
+                self.shutdown_startup(start_today, stop_today, start_tomorrow)
+                logger.debug('Sun schedule applied')
+                if disp:
+                    disp.display_msg(f'Startup:\n{start_today}\nShutdown:\n{stop_today}')
+            else:
+                logger.debug('Using default schedule from config')
+                start_str = config.get('settings', 'default_start')
+                stop_str = config.get('settings', 'default_stop')
+
+                start_time = datetime.strptime(start_str, '%H:%M:%S').time()
+                stop_time = datetime.strptime(stop_str, '%H:%M:%S').time()
+
+                start_dt = datetime.combine(datetime.today(), start_time)
+                stop_dt = datetime.combine(datetime.today(), stop_time)
+
+                self.shutdown_startup(start_dt, stop_dt, start_dt)
+        except Exception as e:
+            logger.warning(f"Failed to apply scheduling: {e}")

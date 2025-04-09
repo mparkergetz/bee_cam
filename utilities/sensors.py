@@ -341,7 +341,7 @@ if __name__ == "__main__":
 
             display.display_sensor_data(temp, humidity, pressure, wind_speed)
 
-            if (time.time() - start_time) >= 10: # Save to CSV every 10 seconds
+            if (time.time() - start_time) >= 10: # Save to db every 10 seconds
                 sensors.insert_into_db()
                 start_time = time.time()
 

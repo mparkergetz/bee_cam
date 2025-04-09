@@ -34,32 +34,9 @@ def run_server():
     # SCHEDULING
     try:
         with WittyPi() as wp:
-            if get_config.getboolean('scheduling', 'sun_sched'):
-                logger.debug('setting to sun sched')
-                try:
-                    start_today, stop_today, start_tomorrow = wp.get_sun_times(sun_times_csv)
-                    logger.debug(f'sun times: {start_today}, {stop_today}, {start_tomorrow}')
-                    wp.shutdown_startup(start_today=start_today, stop_today=stop_today, start_tomorrow=start_tomorrow)
-                    logger.debug('WittyPi shutdown_startup complete')
-                    disp.display_msg(f'Startup:\n{start_today}\nShutdown:\n{stop_today}')
-                except Exception:
-                    logger.warning("Defaulting to config start/stop times")
-            else:
-                try:
-                    start_str = config.get('settings', 'default_start')
-                    stop_str = config.get('settings', 'default_stop')
-
-                    start_time = datetime.strptime(start_str, '%H:%M:%S').time()
-                    stop_time = datetime.strptime(stop_str, '%H:%M:%S').time()
-
-                    start_dt = datetime.combine(datetime.today(), start_time)
-                    stop_dt = datetime.combine(datetime.today(), stop_time)
-
-                    wp.shutdown_startup(start_today=start_dt, stop_today=stop_dt, start_tomorrow=start_dt)
-                except Exception:
-                    logger.warning("Setting default times failed")
+            wp.apply_scheduling(get_config, sun_times_csv, disp)
     except Exception as e:
-        logger.warning(f"Could not set WittyPi schedule: {e}")
+        logger.warning(f"Could not apply WittyPi scheduling: {e}")
 
     logger.debug("Begin logging data")
 
