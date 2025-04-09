@@ -81,6 +81,7 @@ class MQTTManager:
         if rc == 0:
             logger.info(f"Connected to local MQTT broker ({self.heartbeat_topic})")
             client.subscribe(self.heartbeat_topic)
+            client.subscribe("alerts")
             logger.debug(f"Subscribed to topic: {self.heartbeat_topic}")
         else:
             logger.error(f"Local MQTT connection failed with code {rc}")
@@ -107,12 +108,35 @@ class MQTTManager:
             "local": active_cameras
         }
 
-    def _on_heartbeat(self, client, userdata, msg):
-        cursor = self.hb_conn.cursor()
-
+    def _on_local_message(self, client, userdata, msg):
         try:
-            logger.debug(f"[HEARTBEAT RECEIVED] Raw payload: {msg.payload}")
+            logger.debug(f"[LOCAL MQTT RECEIVED] {msg.topic}: {msg.payload}")
             data = json.loads(msg.payload.decode())
+
+            if msg.topic == "heartbeat":
+                self._handle_heartbeat(data)
+            elif msg.topic == "alerts":
+                self._handle_camera_alert(data)
+        except Exception as e:
+            logger.error(f"Failed to process local MQTT message: {e}")
+    
+    def _handle_camera_alert(self, data):
+        try:
+            name = data.get("name", "unknown")
+            timestamp = data.get("timestamp", "")
+            error = data.get("error", "")
+
+            payload = f"[ALERT from {name}] @ {timestamp}: {error}"
+            logger.warning(payload)
+            self.remote_client.publish("alerts", payload, qos=1)
+        except Exception as e:
+            logger.error(f"Failed to forward camera alert: {e}")
+
+
+    def _handle_heartbeat(self, data):
+        try:
+            cursor = self.hb_conn.cursor()
+
             camera_name = data["name"]
             timestamp = datetime.fromisoformat(data["timestamp"])
             camera_on = int(data["cam_on"])

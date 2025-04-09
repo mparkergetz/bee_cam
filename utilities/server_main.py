@@ -13,18 +13,27 @@ import threading
 import time
 import board
 
+class FallbackDisplay: # object that allows script to continue if disp init fails
+    def display_msg(self, *args, **kwargs):
+        pass
+    def display_sensor_data(self, *args, **kwargs):
+        pass
+
+
 def run_server():
     config = Config()
     name = config['general']['name']
-    #sensor_int = get_config.getint('communication', 'sensor_int')
-    # MODULE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
     logger.info("###################### INITIALIZING ##################################")
 
     shared_i2c = board.I2C()  # Initialize the sensors
     sensors = MultiSensor(i2c=shared_i2c)
 
-    disp = Display(i2c=shared_i2c) # Initialize the display
+    try: # Initialize the display
+        disp = Display(i2c=shared_i2c)
+    except:
+        logger.warning('Display init failed')
+        disp = FallbackDisplay()
     disp.display_msg('Initializing')
 
     # SCHEDULING
@@ -58,16 +67,30 @@ def run_server():
                     net_status
                 )
             time.sleep(display_interval)
+    
+    def cleanup(reason=""):
+        disp.display_msg(reason or 'Shutting down')
+        stop_event.set()
+        sensor_thread.join()
+        display_thread.join()
+
+        if len(list(sensors.data_dict.values())[0]) != 0:
+            sensors.insert_into_db()
+
+        mqtt_mgmt.client.loop_stop()
+        mqtt_mgmt.client.disconnect()
+
+        logger.info(f"Script ended: {reason}")
 
     sleep(5)
 
     mqtt_mgmt = MQTTManager()
     mqtt_mgmt.start()
 
-    sensor_thread = threading.Thread(target = sensor_data)
+    sensor_thread = threading.Thread(target = sensor_data, daemon=True)
     sensor_thread.start()
 
-    display_thread = threading.Thread(target=update_display)
+    display_thread = threading.Thread(target=update_display, daemon=True)
     display_thread.start()
 
     try:
@@ -81,24 +104,11 @@ def run_server():
             time.sleep(0.1)
 
     except KeyboardInterrupt:
-        disp.display_msg('Interrupted')
-        stop_event.set()
-        sensor_thread.join()
-        display_thread.join()
-        if len(list(sensors.data_dict.values())[0]) != 0: 
-            sensors.insert_into_db()
-
-        mqtt_mgmt.client.loop_stop()
-        mqtt_mgmt.client.disconnect()
-
-        logger.info("KeyboardInterrupt")
+        cleanup("Interrupted")
         sys.exit()
 
     except:
-        disp.display_msg('Error')
-        stop_event.set()
-        display_thread.join()
-        
+        cleanup("Error")
         logger.exception("Error recording sensor data")
         sys.exit()
 

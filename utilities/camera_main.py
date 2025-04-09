@@ -50,7 +50,7 @@ def run_camera():
     try:
         disp = Display(i2c=shared_i2c)
     except:
-        logger.warning('disp failed')
+        logger.warning('Display init failed')
         disp = FallbackDisplay()
     disp.display_msg('Initializing')
 
@@ -105,6 +105,18 @@ def run_camera():
         sensors.sensors_deinit()
         logger.info("Sensors deinit, Exiting.")
         mqtt.send_camera_shutdown()
+
+    def send_local_alert(mqtt, message):
+        try:
+            topic = "alerts"
+            payload = json.dumps({
+                "name": name,
+                "timestamp": datetime.now().isoformat(),
+                "error": message
+            })
+            mqtt.local_client.publish(topic, payload, qos=1)
+        except Exception as e:
+            logger.error(f"Failed to send local alert: {e}")
 
 ### SET UP THREADING
     stop_event = threading.Event()
@@ -164,6 +176,7 @@ def run_camera():
             disp.display_msg('Cam Timeout!', img_count)
             logger.error("Camera operation timeout!")
             if retry_count >= MAX_RETRIES:
+                send_local_alert(mqtt, "Camera timeout error")
                 disp.display_msg('Max retries reached!', img_count)
                 logger.error("Max retries reached. Exiting...")
                 sys.exit()
@@ -174,6 +187,7 @@ def run_camera():
         except Exception as e:
             disp.display_msg('Error', img_count)
             logger.exception("Error capturing image: %s", str(e))
+            send_local_alert(mqtt, str(e))
             cleanup()
             sys.exit()
 
