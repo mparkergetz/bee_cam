@@ -3,4 +3,4 @@ __pycache__
 *.db
 data
 config.ini
-*.crt
+.crt
