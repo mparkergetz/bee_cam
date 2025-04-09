@@ -17,6 +17,12 @@ from datetime import datetime
 import threading
 import time
 
+class FallbackDisplay: # object that allows script to continue if disp init fails
+    def display_msg(self, *args, **kwargs):
+        pass
+    def display_sensor_data(self, *args, **kwargs):
+        pass
+
 def run_camera():
     logger.info("###################### INITIALIZING ##################################")
 
@@ -41,13 +47,17 @@ def run_camera():
     shared_i2c = board.I2C()
     sensors = MultiSensor(i2c=shared_i2c) # Initialize the sensors
 
-    disp = Display()
+    try:
+        disp = Display(i2c=shared_i2c)
+    except:
+        logger.warning('disp failed')
+        disp = FallbackDisplay()
     disp.display_msg('Initializing')
 
     # SCHEDULING
     try:
         with WittyPi() as wp:
-            wp.apply_scheduling(get_config, sun_times_csv, disp)
+            wp.apply_scheduling(config, disp)
     except Exception as e:
         logger.warning(f"Could not apply WittyPi scheduling: {e}")
 
@@ -80,8 +90,8 @@ def run_camera():
                 break
 
     def capture_image(time_current_split):
-        event.wait()
-        camera.capture_file('images/'+name + '_' + time_current_split + '.jpg')
+        filename = os.path.join("images", f"{name}_{time_current_split}.jpg")
+        camera.capture_file(filename)
         logger.debug("Image acquired: %s", time_current_split)
 
     def cleanup():
@@ -94,7 +104,7 @@ def run_camera():
             sensors.insert_into_db()
         sensors.sensors_deinit()
         logger.info("Sensors deinit, Exiting.")
-        send_camera_shutdown()
+        mqtt.send_camera_shutdown()
 
 ### SET UP THREADING
     stop_event = threading.Event()
@@ -118,7 +128,6 @@ def run_camera():
         try:
             disp.display_msg('Imaging!', img_count)
 
-            event.set()
             time_current = datetime.now()
             time_current_split = str(time_current.strftime("%Y%m%d_%H%M%S"))
             
@@ -128,7 +137,6 @@ def run_camera():
             capture_thread.join(timeout=3) 
             if capture_thread.is_alive(): # If thread is still alive after 3 seconds, it's probably hung
                 raise TimeoutError("Camera operation took too long!")
-            event.clear()
             
             img_count += 1
             retry_count = 0

@@ -14,34 +14,29 @@ import time
 import board
 
 def run_server():
-    get_config = Config()
-    config = get_config.dict()
+    config = Config()
     name = config['general']['name']
     #sensor_int = get_config.getint('communication', 'sensor_int')
-    MODULE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    sun_times_csv = os.path.join(MODULE_ROOT, 'setup', 'sun_times.csv')
+    # MODULE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
     logger.info("###################### INITIALIZING ##################################")
 
-    # Initialize the sensors
-    shared_i2c = board.I2C()
+    shared_i2c = board.I2C()  # Initialize the sensors
     sensors = MultiSensor(i2c=shared_i2c)
 
-    # Initialize the display
-    disp = Display(i2c=shared_i2c)
+    disp = Display(i2c=shared_i2c) # Initialize the display
     disp.display_msg('Initializing')
 
     # SCHEDULING
     try:
         with WittyPi() as wp:
-            wp.apply_scheduling(get_config, sun_times_csv, disp)
+            wp.apply_scheduling(config, disp)
     except Exception as e:
         logger.warning(f"Could not apply WittyPi scheduling: {e}")
 
     logger.debug("Begin logging data")
 
-    # Create thread stop event
-    stop_event = threading.Event()
+    stop_event = threading.Event() # Create thread stop event
 
     def sensor_data():
         while not stop_event.is_set():

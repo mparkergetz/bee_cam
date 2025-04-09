@@ -53,10 +53,10 @@ class WittyPi:
             logger.warning(f"Invalid RTC values: {e}. Falling back to system time.")
             return datetime.now()
 
-    def get_sun_times(self, csv_path: str) -> tuple[datetime, datetime, datetime]:
-        """
-        Returns (sunrise_today, sunset_today, sunrise_tomorrow) from the CSV.
-        """
+    def get_sun_times(self) -> tuple[datetime, datetime, datetime]:
+        module_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        csv_path = os.path.join(module_root, 'setup', 'sun_times.csv')
+
         now = datetime.now()
         today_str = now.strftime('%Y-%m-%d')
         tomorrow_str = (now + timedelta(days=1)).strftime('%Y-%m-%d')
@@ -79,7 +79,8 @@ class WittyPi:
             sunrise_today = datetime.strptime(f"{today_str} {today_row['sunrise']}", "%Y-%m-%d %H:%M:%S") + timedelta(hours=1)
             sunset_today = datetime.strptime(f"{today_str} {today_row['sunset']}", "%Y-%m-%d %H:%M:%S") - timedelta(hours=1)
             sunrise_tomorrow = datetime.strptime(f"{tomorrow_str} {tomorrow_row['sunrise']}", "%Y-%m-%d %H:%M:%S") + timedelta(hours=1)
-            logger.debug(f'Sunrise today: {sunrise_today}, Sunset today: {sunset_today}, Sunrise_tomorrow: {sunrise_tomorrow}')
+
+            logger.debug(f'Sunrise today: {sunrise_today}, Sunset today: {sunset_today}, Sunrise tomorrow: {sunrise_tomorrow}')
             return sunrise_today, sunset_today, sunrise_tomorrow
 
         except KeyError as e:
@@ -180,11 +181,11 @@ class WittyPi:
 
         return self.get_current_time()
 
-    def apply_scheduling(self, config: Config, sun_times_csv: str, disp=None):
+    def apply_scheduling(self, config: Config, disp=None):
         try:
             if config.getboolean('scheduling', 'sun_sched'):
                 logger.debug('Using sunrise/sunset schedule')
-                start_today, stop_today, start_tomorrow = self.get_sun_times(sun_times_csv)
+                start_today, stop_today, start_tomorrow = self.get_sun_times()
                 self.shutdown_startup(start_today, stop_today, start_tomorrow)
                 logger.debug('Sun schedule applied')
                 if disp:
