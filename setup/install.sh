@@ -23,7 +23,7 @@ echo ">>> Setting hostname to '$UNIT_NAME'"
 echo "$UNIT_NAME" > /etc/hostname
 sed -i "s/127.0.1.1.*/127.0.1.1\t$UNIT_NAME/" /etc/hosts
 
-read -rp "Use: tt (Talking Trees), sm (Sunrise Mountain), eq (Emerald Queen), or none: " LOCATION_SHORT
+read -rp "Set location: tt (Talking Trees), sm (Sunrise Mountain), eq (Emerald Queen), or none: " LOCATION_SHORT
 LOCATION_SHORT=$(echo "$LOCATION_SHORT" | tr '[:upper:]' '[:lower:]')
 
 case "$LOCATION_SHORT" in
@@ -80,9 +80,9 @@ if [[ "$MODE" == "server" ]]; then
   systemctl start hostapd
   systemctl start dnsmasq
 
-  echo ">>> Setting permissions on serial port"
-  chown root:dialout /dev/serial0
-  chmod 660 /dev/serial0
+  #echo ">>> Setting permissions on serial port"
+  #chown root:dialout /dev/serial0
+  #chmod 660 /dev/serial0
 
 else
   echo ">>> Configuring as CAMERA (node)"
