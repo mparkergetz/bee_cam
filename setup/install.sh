@@ -114,10 +114,17 @@ if [[ "$MODE" == "camera" ]]; then
 fi
 
 CONFIG_TARGET="$(realpath "$BASE_DIR/..")/config.ini"
-echo ">>> Writing config.ini to $CONFIG_TARGET"
-cp "$BASE_DIR/example_config.ini" "$CONFIG_TARGET"
-sed -i "s/^\[.*\]/[general]/" "$CONFIG_TARGET"
-sed -i "/^\[general\]/a name = $UNIT_NAME\nmode = $MODE" "$CONFIG_TARGET"
+if grep -q "^name *= *" "$CONFIG_TARGET"; then
+  sed -i "s/^name *= *.*/name = $UNIT_NAME/" "$CONFIG_TARGET"
+else
+  sed -i "/^\[general\]/a name = $UNIT_NAME" "$CONFIG_TARGET"
+fi
+
+if grep -q "^mode *= *" "$CONFIG_TARGET"; then
+  sed -i "s/^mode *= *.*/mode = $MODE/" "$CONFIG_TARGET"
+else
+  sed -i "/^\[general\]/a mode = $MODE" "$CONFIG_TARGET"
+fi
 
 if [[ "$LOCATION" != "none" ]]; then
   echo ">>> Generating sunrise/sunset times for $LOCATION..."
