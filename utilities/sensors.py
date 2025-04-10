@@ -31,6 +31,7 @@ mode = config['general']['mode']
 
 db_relative_path = config['communication']['sensor_db']
 db_path = os.path.join(package_root, db_relative_path)
+os.makedirs(os.path.dirname(db_path), exist_ok=True)
 
 if mode == 'server':
     import adafruit_sht31d # temp humidity
