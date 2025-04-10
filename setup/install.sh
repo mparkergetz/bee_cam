@@ -60,6 +60,7 @@ if [[ "$MODE" == "server" ]]; then
   systemctl stop dnsmasq
 
   echo ">>> Copying config files for server..."
+  cp "$BASE_DIR/server/config_server.txt" /boot/config.txt
   cp "$BASE_DIR/server/dhcpcd.conf" /etc/dhcpcd.conf
   cp "$BASE_DIR/server/dnsmasq.conf" /etc/dnsmasq.conf
   cp "$BASE_DIR/server/hostapd.conf" /etc/hostapd/hostapd.conf
@@ -85,6 +86,7 @@ if [[ "$MODE" == "server" ]]; then
 
 else
   echo ">>> Configuring as CAMERA (node)"
+  cp "$BASE_DIR/node/config_camera.txt" /boot/config.txt
   cp "$BASE_DIR/node/wpa_supplicant.conf" /etc/wpa_supplicant/wpa_supplicant.conf
 fi
 
@@ -100,8 +102,15 @@ systemctl enable bee_cam.service
 systemctl enable datetime_sync.service
 
 if [[ "$MODE" == "server" ]]; then
+  echo ">>> Installing ppp_connect.service"
   cp "$BASE_DIR/systemd_services/ppp_connect.service" /etc/systemd/system/
   systemctl enable ppp_connect.service
+fi
+
+if [[ "$MODE" == "camera" ]]; then
+  echo ">>> Installing camera_monitor.service"
+  cp "$BASE_DIR/systemd_services/camera_monitor.service" /etc/systemd/system/
+  systemctl enable camera_monitor.service
 fi
 
 CONFIG_TARGET="$(realpath "$BASE_DIR/..")/config.ini"
