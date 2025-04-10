@@ -90,6 +90,11 @@ else
   cp "$BASE_DIR/node/wpa_supplicant.conf" /etc/wpa_supplicant/wpa_supplicant.conf
 fi
 
+echo ">>> Enabling I2C kernel modules"
+grep -q '^i2c-dev' /etc/modules || echo "i2c-dev" >> /etc/modules
+modprobe i2c-dev || echo "Failed to load i2c-dev module"
+modprobe i2c-bcm2835 || echo "⚠Failed to load i2c-bcm2835 module"
+
 echo ">>> Installing Python requirements"
 pip3 install --upgrade pip
 pip3 install -r "$BASE_DIR/requirements.txt"
