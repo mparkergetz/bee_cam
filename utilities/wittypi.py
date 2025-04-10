@@ -76,9 +76,9 @@ class WittyPi:
             today_row = sun_data[today_str]
             tomorrow_row = sun_data[tomorrow_str]
 
-            sunrise_today = datetime.strptime(f"{today_str} {today_row['sunrise']}", "%Y-%m-%d %H:%M:%S") + timedelta(hours=1)
-            sunset_today = datetime.strptime(f"{today_str} {today_row['sunset']}", "%Y-%m-%d %H:%M:%S") - timedelta(hours=1)
-            sunrise_tomorrow = datetime.strptime(f"{tomorrow_str} {tomorrow_row['sunrise']}", "%Y-%m-%d %H:%M:%S") + timedelta(hours=1)
+            sunrise_today = datetime.strptime(f"{today_str} {today_row['sunrise']}", "%Y-%m-%d %H:%M:%S")
+            sunset_today = datetime.strptime(f"{today_str} {today_row['sunset']}", "%Y-%m-%d %H:%M:%S")
+            sunrise_tomorrow = datetime.strptime(f"{tomorrow_str} {tomorrow_row['sunrise']}", "%Y-%m-%d %H:%M:%S")
 
             logger.debug(f'Sunrise today: {sunrise_today}, Sunset today: {sunset_today}, Sunrise tomorrow: {sunrise_tomorrow}')
             return sunrise_today, sunset_today, sunrise_tomorrow

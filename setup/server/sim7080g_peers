@@ -1,0 +1,11 @@
+#/etc/ppp/peers/sim7080g
+/dev/serial0
+9600
+crtscts
+noauth
+defaultroute
+usepeerdns
+connect "/usr/sbin/chat -v -f /etc/chatscripts/sim7080g"
+persist
+maxfail 0
+holdoff 5

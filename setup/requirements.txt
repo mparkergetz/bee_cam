@@ -11,6 +11,7 @@ adafruit-circuitpython-veml7700==2.1.2
 adafruit-circuitpython-typing==1.11.2
 Adafruit-PlatformDetect==3.77.0
 Adafruit-PureIO==1.1.11
+astral==3.2
 binho-host-adapter==0.1.6
 certifi==2020.6.20
 chardet==4.0.0
@@ -20,6 +21,7 @@ gpiozero==1.6.2
 idna==2.10
 numpy==1.19.5
 paho-mqtt==2.1.0
+pandas==2.2.3
 picamera2==0.3.12
 pidng==4.0.9
 piexif==1.1.3
