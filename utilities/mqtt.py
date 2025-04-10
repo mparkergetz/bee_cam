@@ -16,6 +16,10 @@ class MQTTManager:
     def __init__(self):
         self.config = Config()
         self.unit_name = self.config['general']['name']
+        self.send_freq = self.config.getint('communication', 'send_freq', fallback=120)
+        self.camstatus_freq = self.config.getint('communication', 'camstatus_freq', fallback=600)
+        self.monitor_freq = self.config.getint('communication', 'monitor_freq', fallback=60)
+
         self.is_remote_connected = False
         self.is_local_connected = False
 
@@ -33,21 +37,21 @@ class MQTTManager:
         self.mqtt_user = "user1"
         self.mqtt_pass = "user1pasS"
         self.heartbeat_topic = "heartbeat"
-        self.hub_IP = "192.168.2.1"
+        self.hub_IP = self.config['communication'].get('network_ip', '192.168.2.1')
 
         self.last_seen_cache = {}
         self.camera_warnings = {}
         self.camera_sync_status = {}
 
         # Remote client (EMQX)
-        self.remote_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+        self.remote_client = mqtt.Client(client_id=f"{self.unit_name}_remote", callback_api_version=mqtt.CallbackAPIVersion.VERSION2)
         self.remote_client.username_pw_set(self.mqtt_user, self.mqtt_pass)
         cert_path = os.path.join(os.path.dirname(__file__), "mycert.crt")
         self.remote_client.tls_set(ca_certs=cert_path)
         self.remote_client.on_connect = self._on_remote_connect
 
         # Local client (LAN heartbeat)
-        self.local_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+        self.local_client = mqtt.Client(client_id=f"{self.unit_name}_local", callback_api_version=mqtt.CallbackAPIVersion.VERSION2)
         self.local_client.on_connect = self._on_local_connect
         self.local_client.on_message = self._on_local_message
 
@@ -237,7 +241,7 @@ class MQTTManager:
                     self.remote_client.publish(topic, payload, qos=1)
             except Exception as e:
                 logger.warning(f"Failed to publish sensor data: {e}")
-            time.sleep(60)
+            time.sleep(self.send_freq)
 
     def _send_camera_status(self):
         local_conn = sqlite3.connect(self.heartbeat_db_path, check_same_thread=False)
@@ -276,7 +280,7 @@ class MQTTManager:
             except Exception as e:
                 logger.warning(f"Failed to send camera status: {e}")
 
-            time.sleep(60)
+            time.sleep(self.camstatus_freq)
 
     def send_camera_heartbeat(self, stop_event):
         while not stop_event.is_set():
@@ -308,33 +312,6 @@ class MQTTManager:
         except Exception as e:
             logger.error(f"Failed to send final offline heartbeat: {e}")
 
-
-    def is_camera_running(self):
-        for proc in psutil.process_iter(['pid', 'cmdline']):
-            try:
-                if proc.info['cmdline'] and 'camera_main.py' in ' '.join(proc.info['cmdline']):
-                    return True
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                continue
-        return False
-
-    def monitor_camera_main(self):
-        topic = "heartbeat_alert"
-        while True:
-            if not self.is_camera_running():
-                timestamp = datetime.now().isoformat()
-                message = json.dumps({
-                    "name": self.unit_name,
-                    "timestamp": timestamp,
-                    "error": "camera_main.py is NOT running!"
-                })
-                try:
-                    self.remote_client.publish(topic, message)
-                    logger.warning(f"ALERT SENT: {message}")
-                except Exception as e:
-                    logger.error(f"Failed to send alert: {e}")
-            time.sleep(60)          
-
     def start(self):
         try:
             # Remote client setup
@@ -344,10 +321,11 @@ class MQTTManager:
 
             # Local client setup
             self.local_client.connect_async(self.hub_IP, 1883)
-            logger.info("Trying to connect to local MQTT broker...")
+            logger.debug("Trying to connect to local MQTT broker...")
             self.local_client.loop_start()
 
             logger.debug("MQTTManager started both local and remote clients.")
+            logger.info(f"MQTTManager frequencies — send_freq: {self.send_freq}s, camstatus_freq: {self.camstatus_freq}s, monitor_freq: {self.monitor_freq}s")
 
             threading.Thread(target=self._monitor_camera_status, daemon=True).start()
             threading.Thread(target=self._send_sensor_data, daemon=True).start()
@@ -362,6 +340,3 @@ class MQTTManager:
             logger.info("Local MQTT client connected (from connect_local)")
         except Exception as e:
             logger.error(f"Error connecting local MQTT: {e}")
-
-if __name__ == "__main__":
-    MonitorCameraMain()

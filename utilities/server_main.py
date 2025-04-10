@@ -23,6 +23,8 @@ class FallbackDisplay: # object that allows script to continue if disp init fail
 def run_server():
     config = Config()
     name = config['general']['name']
+    sensor_freq = config['sensors'].getint('sensor_freq', fallback=5)
+    db_write_freq = config['sensors'].getint('db_write_freq', fallback=60)
 
     logger.info("###################### INITIALIZING ##################################")
 
@@ -43,6 +45,7 @@ def run_server():
     except Exception as e:
         logger.warning(f"Could not apply WittyPi scheduling: {e}")
 
+    logger.info(f"Sensor frequency: {sensor_freq}s | DB write frequency: {db_write_freq}s")
     logger.debug("Begin logging data")
 
     stop_event = threading.Event() # Create thread stop event
@@ -51,7 +54,7 @@ def run_server():
         while not stop_event.is_set():
             time_current = datetime.now()
             sensors.add_data(time_current)
-            time.sleep(5) ## HOW OFTEN DOES SENSOR DATA GET ADDED TO QUEUE
+            time.sleep(sensor_freq) ## HOW OFTEN DOES SENSOR DATA GET ADDED TO QUEUE
 
     def update_display():
         display_interval = 1
@@ -100,7 +103,7 @@ def run_server():
 
         while True:
             readings = sensors.latest_readings
-            if (time.monotonic() - curr_time) >= 10:
+            if (time.monotonic() - curr_time) >= db_write_freq:
                 sensors.insert_into_db()
                 curr_time = time.monotonic()
             time.sleep(0.1)
