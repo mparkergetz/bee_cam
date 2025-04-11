@@ -51,6 +51,16 @@ apt update
 apt upgrade -y
 apt install -y git python3-pip mosquitto mosquitto-clients avahi-daemon
 
+echo ">>> Installing WittyPi"
+sudo apt-get -y remove fake-hwclock
+sudo update-rc.d -f fake-hwclock remove
+sudo systemctl disable fake-hwclock
+sudo rm -f /lib/udev/hwclock-set
+
+wget https://www.uugear.com/repo/WittyPi4/install.sh -O /home/pi/wittypi_install.sh
+sudo sh /home/pi/wittypi_install.sh
+rm /home/pi/wittypi_install.sh
+
 if [[ "$MODE" == "server" ]]; then
   echo ">>> Configuring as SERVER (Wi-Fi AP + Modem)"
 
@@ -69,6 +79,7 @@ if [[ "$MODE" == "server" ]]; then
   cp "$BASE_DIR/server/sim7080g" /etc/chatscripts/sim7080g
   cp "$BASE_DIR/server/resolv.conf" /etc/ppp/resolv.conf
   cp "$BASE_DIR/server/ip-up" /etc/ppp/ip-up
+  cp "$BASE_DIR/server/mosquitto.conf" /etc/mosquitto/mosquitto.conf
 
   chmod +x /etc/ppp/ip-up
 
@@ -79,6 +90,7 @@ if [[ "$MODE" == "server" ]]; then
   systemctl restart dhcpcd
   systemctl start hostapd
   systemctl start dnsmasq
+  systemctl restart mosquitto
 
   #echo ">>> Setting permissions on serial port"
   #chown root:dialout /dev/serial0
