@@ -1,4 +1,3 @@
-#/etc/chatscripts/
 TIMEOUT 15
 ECHO ON
 ABORT 'NO CARRIER'
