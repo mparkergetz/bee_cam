@@ -137,7 +137,7 @@ if [[ "$MODE" == "camera" ]]; then
 fi
 
 CONFIG_TARGET="$(realpath "$BASE_DIR/..")/config.ini"
-EXAMPLE_CONFIG="$(realpath "$BASE_DIR/..")/example_config.ini"
+EXAMPLE_CONFIG="$(realpath "$BASE_DIR/..")/setup/example_config.ini"
 if [[ ! -f "$CONFIG_TARGET" && -f "$EXAMPLE_CONFIG" ]]; then
   cp "$EXAMPLE_CONFIG" "$CONFIG_TARGET"
 fi
