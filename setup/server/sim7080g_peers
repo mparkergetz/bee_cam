@@ -4,6 +4,7 @@
 crtscts
 noauth
 defaultroute
+replacedefaultroute
 usepeerdns
 connect "/usr/sbin/chat -v -f /etc/chatscripts/sim7080g"
 persist
