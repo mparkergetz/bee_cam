@@ -69,6 +69,7 @@ raspi-config nonint do_wifi_country US
 
 if [[ "$MODE" == "server" ]]; then
   echo ">>> Configuring as SERVER (Wi-Fi AP + Modem)"
+  sed -i 's/console=serial0,[0-9]* //g' /boot/cmdline.txt
 
   apt install -y hostapd dnsmasq minicom screen python3-serial ppp
 
