@@ -22,6 +22,7 @@ read -rp "Enter unit name (camera1/server1): " UNIT_NAME
 echo ">>> Setting hostname to '$UNIT_NAME'"
 echo "$UNIT_NAME" > /etc/hostname
 sed -i "s/127.0.1.1.*/127.0.1.1\t$UNIT_NAME/" /etc/hosts
+hostnamectl set-hostname "$UNIT_NAME"
 
 read -rp "Set location: tt (Talking Trees), sm (Sunrise Mountain), eq (Emerald Queen), or none: " LOCATION_SHORT
 LOCATION_SHORT=$(echo "$LOCATION_SHORT" | tr '[:upper:]' '[:lower:]')
