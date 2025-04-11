@@ -64,6 +64,7 @@ rm /home/pi/wittypi_install.sh
 
 echo ">>> Unblocking Wi-Fi"
 rfkill unblock wifi || echo "rfkill not available or failed"
+raspi-config nonint do_wifi_country US
 
 if [[ "$MODE" == "server" ]]; then
   echo ">>> Configuring as SERVER (Wi-Fi AP + Modem)"
