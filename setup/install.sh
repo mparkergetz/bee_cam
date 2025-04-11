@@ -137,6 +137,10 @@ if [[ "$MODE" == "camera" ]]; then
 fi
 
 CONFIG_TARGET="$(realpath "$BASE_DIR/..")/config.ini"
+EXAMPLE_CONFIG="$(realpath "$BASE_DIR/..")/example_config.ini"
+if [[ ! -f "$CONFIG_TARGET" && -f "$EXAMPLE_CONFIG" ]]; then
+  cp "$EXAMPLE_CONFIG" "$CONFIG_TARGET"
+fi
 if grep -q "^name *= *" "$CONFIG_TARGET"; then
   sed -i "s/^name *= *.*/name = $UNIT_NAME/" "$CONFIG_TARGET"
 else
