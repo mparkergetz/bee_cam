@@ -53,14 +53,14 @@ apt upgrade -y
 apt install -y git python3-pip mosquitto mosquitto-clients avahi-daemon
 
 echo ">>> Installing WittyPi"
-sudo apt-get -y remove fake-hwclock
-sudo update-rc.d -f fake-hwclock remove
-sudo systemctl disable fake-hwclock
-sudo rm -f /lib/udev/hwclock-set
+apt-get -y remove fake-hwclock
+update-rc.d -f fake-hwclock remove
+systemctl disable fake-hwclock
+rm -f /lib/udev/hwclock-set
 
 wget https://www.uugear.com/repo/WittyPi4/install.sh -O /home/pi/wittypi_install.sh
 chown pi:pi /home/pi/wittypi_install.sh
-sudo -u pi bash /home/pi/wittypi_install.sh
+bash /home/pi/wittypi_install.sh
 rm /home/pi/wittypi_install.sh
 
 echo ">>> Unblocking Wi-Fi"
