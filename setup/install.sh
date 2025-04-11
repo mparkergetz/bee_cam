@@ -58,7 +58,8 @@ sudo systemctl disable fake-hwclock
 sudo rm -f /lib/udev/hwclock-set
 
 wget https://www.uugear.com/repo/WittyPi4/install.sh -O /home/pi/wittypi_install.sh
-sudo sh /home/pi/wittypi_install.sh
+chown pi:pi /home/pi/wittypi_install.sh
+sudo -u pi bash /home/pi/wittypi_install.sh
 rm /home/pi/wittypi_install.sh
 
 if [[ "$MODE" == "server" ]]; then
