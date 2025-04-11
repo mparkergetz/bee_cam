@@ -62,6 +62,9 @@ chown pi:pi /home/pi/wittypi_install.sh
 sudo -u pi bash /home/pi/wittypi_install.sh
 rm /home/pi/wittypi_install.sh
 
+echo ">>> Unblocking Wi-Fi"
+rfkill unblock wifi || echo "rfkill not available or failed"
+
 if [[ "$MODE" == "server" ]]; then
   echo ">>> Configuring as SERVER (Wi-Fi AP + Modem)"
 
