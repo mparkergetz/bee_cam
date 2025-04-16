@@ -152,6 +152,7 @@ if grep -q "^mode *= *" "$CONFIG_TARGET"; then
 else
   sed -i "/^\[general\]/a mode = $MODE" "$CONFIG_TARGET"
 fi
+chown pi:pi "$CONFIG_TARGET"
 
 if [[ "$LOCATION" != "none" ]]; then
   echo ">>> Generating sunrise/sunset times for $LOCATION..."

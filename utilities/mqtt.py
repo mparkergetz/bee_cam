@@ -325,7 +325,7 @@ class MQTTManager:
             self.local_client.loop_start()
 
             logger.debug("MQTTManager started both local and remote clients.")
-            logger.info(f"MQTTManager frequencies — send_freq: {self.send_freq}s, camstatus_freq: {self.camstatus_freq}s, monitor_freq: {self.monitor_freq}s")
+            logger.info(f"send_freq: {self.send_freq}s, camstatus_freq: {self.camstatus_freq}s, monitor_freq: {self.monitor_freq}s")
 
             threading.Thread(target=self._monitor_camera_status, daemon=True).start()
             threading.Thread(target=self._send_sensor_data, daemon=True).start()

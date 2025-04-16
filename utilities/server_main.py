@@ -33,6 +33,7 @@ def run_server():
 
     try: # Initialize the display
         disp = Display(i2c=shared_i2c)
+        logger.debug("Display initialized successfully.")
     except:
         logger.warning('Display init failed')
         disp = FallbackDisplay()
@@ -61,14 +62,17 @@ def run_server():
         while not stop_event.is_set():
             readings = sensors.latest_readings
             net_status = mqtt_mgmt.get_network_status()
-            if None not in readings.values():
-                disp.display_sensor_data(
-                    readings["temperature"],
-                    readings["relative_humidity"],
-                    readings["pressure"],
-                    readings["wind_speed"],
-                    net_status
-                )
+
+            def safe(val, unit=""):
+                return f"{val:.1f}{unit}" if val is not None else "--"
+            
+            disp.display_sensor_data(
+                safe(readings.get("temperature"), "°C"),
+                safe(readings.get("relative_humidity"), "%"),
+                safe(readings.get("pressure"), "hPa"),
+                safe(readings.get("wind_speed"), "m/s"),
+                net_status
+            )
             time.sleep(display_interval)
     
     def cleanup(reason=""):
