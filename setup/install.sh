@@ -50,7 +50,7 @@ esac
 echo ">>> Updating system and installing dependencies"
 apt update
 apt upgrade -y
-apt install -y git python3-pip mosquitto mosquitto-clients avahi-daemon
+apt install -y git python3-pip mosquitto mosquitto-clients avahi-daemon sqlite3
 
 echo ">>> Installing WittyPi"
 apt-get -y remove fake-hwclock
