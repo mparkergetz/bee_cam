@@ -50,7 +50,7 @@ esac
 echo ">>> Updating system and installing dependencies"
 apt update
 apt upgrade -y
-apt install -y git python3-pip mosquitto mosquitto-clients avahi-daemon
+apt install -y git python3-pip mosquitto mosquitto-clients avahi-daemon sqlite3
 
 echo ">>> Installing WittyPi"
 apt-get -y remove fake-hwclock
@@ -69,6 +69,7 @@ raspi-config nonint do_wifi_country US
 
 if [[ "$MODE" == "server" ]]; then
   echo ">>> Configuring as SERVER (Wi-Fi AP + Modem)"
+  sed -i 's/console=serial0,[0-9]* //g' /boot/cmdline.txt
 
   apt install -y hostapd dnsmasq minicom screen python3-serial ppp
 
