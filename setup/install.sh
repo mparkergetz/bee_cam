@@ -118,12 +118,6 @@ EOF
   systemctl start dnsmasq
   systemctl restart mosquitto
 
-  echo ">>> Clearing extra PDP contexts from modem
-  
-  #echo ">>> Setting permissions on serial port"
-  #chown root:dialout /dev/serial0
-  #chmod 660 /dev/serial0
-
 else
   echo ">>> Configuring as CAMERA (node)"
   cp "$BASE_DIR/node/config_camera.txt" /boot/config.txt
