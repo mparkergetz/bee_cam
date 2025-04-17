@@ -1,4 +1,3 @@
-#/etc/ppp/peers/sim7080g
 /dev/serial0
 9600
 crtscts

@@ -63,14 +63,11 @@ def run_server():
             readings = sensors.latest_readings
             net_status = mqtt_mgmt.get_network_status()
 
-            def safe(val, unit=""):
-                return f"{val:.1f}{unit}" if val is not None else "--"
-            
             disp.display_sensor_data(
-                safe(readings.get("temperature"), "°C"),
-                safe(readings.get("relative_humidity"), "%"),
-                safe(readings.get("pressure"), "hPa"),
-                safe(readings.get("wind_speed"), "m/s"),
+                readings['temperature'],
+                readings['relative_humidity'],
+                readings['pressure'],
+                readings['wind_speed'],
                 net_status
             )
             time.sleep(display_interval)
