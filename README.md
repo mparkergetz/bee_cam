@@ -1,5 +1,6 @@
 # fresh OS (bullseye 64bit lite):
 sync RTC if new: timedatectl set-ntp true
+
 sudo apt update ; sudo apt upgrade -y ; sudo apt install git -y ; git clone https://github.com/mparkergetz/bee_cam
 
 # install:
