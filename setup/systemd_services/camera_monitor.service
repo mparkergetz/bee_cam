@@ -1,0 +1,16 @@
+[Unit]
+Description=camera_main.py Monitor
+After=network.target
+
+[Service]
+ExecStartPre=/bin/sleep 300
+ExecStart=/usr/bin/python3 /home/pi/bee_cam/utilities/camera_monitor.py
+WorkingDirectory=/home/pi/bee_cam
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+User=pi
+
+[Install]
+WantedBy=multi-user.target

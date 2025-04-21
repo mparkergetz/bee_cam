@@ -8,12 +8,12 @@ def main():
     mode = config["general"].get("mode", "camera").strip().lower()
 
     if mode == "server":
-        from server.server_main import run_server
+        from utilities.server_main import run_server
         print("Starting in SERVER mode...")
         run_server()
 
     elif mode == "camera":
-        from camera.camera_main import run_camera
+        from utilities.camera_main import run_camera
         print("Starting in CAMERA mode...")
         run_camera()
 

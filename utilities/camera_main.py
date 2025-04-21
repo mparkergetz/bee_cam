@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 import os
 import sys
-import logging
+from utilities.logger import logger as base_logger
+logger = base_logger.getChild("Camera")
+
 from utilities.config import Config
 from utilities.display import Display
 from utilities.sensors import MultiSensor
-from .send_heartbeat import SendCameraHeartbeat, SendCameraShutdown
+from utilities.mqtt import MQTTManager
+from utilities.wittypi import WittyPi
 import board
 
 from picamera2 import Picamera2
@@ -14,7 +17,15 @@ from datetime import datetime
 import threading
 import time
 
+class FallbackDisplay: # object that allows script to continue if disp init fails
+    def display_msg(self, *args, **kwargs):
+        pass
+    def display_sensor_data(self, *args, **kwargs):
+        pass
+
 def run_camera():
+    logger.info("###################### INITIALIZING ##################################")
+
     config = Config()
     name = config['general']['name'] 
 
@@ -34,20 +45,23 @@ def run_camera():
     os.makedirs(path_image_dat, exist_ok=True)
     
     shared_i2c = board.I2C()
-    sensors = MultiSensor(curr_date, i2c=shared_i2c) # Initialize the sensors
+    sensors = MultiSensor(i2c=shared_i2c) # Initialize the sensors
 
-    disp = Display()
+    try:
+        disp = Display(i2c=shared_i2c)
+    except:
+        logger.warning('Display init failed')
+        disp = FallbackDisplay()
     disp.display_msg('Initializing')
 
-    # Configure logging
-    log_dir = os.path.join(MODULE_ROOT, "logs")
-    os.makedirs(log_dir, exist_ok=True)
-    log_file = os.path.join(log_dir, "camera_main.log")
-    logging.basicConfig(filename=log_file, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    # SCHEDULING
+    try:
+        with WittyPi() as wp:
+            wp.apply_scheduling(config, disp)
+    except Exception as e:
+        logger.warning(f"Could not apply WittyPi scheduling: {e}")
 
-    logging.info("###################### NEW RUN ##################################")
-
-    MAX_RETRIES = 3
+    MAX_RETRIES = 3 # MAX CAMERA TIMEOUTS
 
     for attempt in range(MAX_RETRIES):
         try:
@@ -60,14 +74,14 @@ def run_camera():
             sleep(5)
             break
         except Exception as e:
-            logging.error(f"Camera init attempt {attempt+1} failed: {e}")
+            logger.error(f"Camera init attempt {attempt+1} failed: {e}")
             sleep(2)
     else:
         disp.display_msg('Cam init failed', img_count)
         sys.exit()
 
     os.chdir(curr_date)
-    logging.info("Imaging...")
+    logger.info("Imaging...")
 
     def sensor_data():
         while not stop_event.is_set():
@@ -76,9 +90,9 @@ def run_camera():
                 break
 
     def capture_image(time_current_split):
-        event.wait()
-        camera.capture_file('images/'+name + '_' + time_current_split + '.jpg')
-        logging.debug("Image acquired: %s", time_current_split)
+        filename = os.path.join("images", f"{name}_{time_current_split}.jpg")
+        camera.capture_file(filename)
+        logger.debug("Image acquired: %s", time_current_split)
 
     def cleanup():
         stop_event.set()
@@ -87,10 +101,22 @@ def run_camera():
         if heartbeat_thread.is_alive():
             heartbeat_thread.join()
         if len(list(sensors.data_dict.values())[0]) != 0:
-            sensors.append_to_csv()
+            sensors.insert_into_db()
         sensors.sensors_deinit()
-        logging.info("Sensors deinit, Exiting.")
-        SendCameraShutdown()
+        logger.info("Sensors deinit, Exiting.")
+        mqtt.send_camera_shutdown()
+
+    def send_local_alert(mqtt, message):
+        try:
+            topic = "alerts"
+            payload = json.dumps({
+                "name": name,
+                "timestamp": datetime.now().isoformat(),
+                "error": message
+            })
+            mqtt.local_client.publish(topic, payload, qos=1)
+        except Exception as e:
+            logger.error(f"Failed to send local alert: {e}")
 
 ### SET UP THREADING
     stop_event = threading.Event()
@@ -98,7 +124,9 @@ def run_camera():
     sensor_thread = threading.Thread(target = sensor_data, daemon=True)
     sensor_thread.start()
 
-    heartbeat_thread = threading.Thread(target=SendCameraHeartbeat, args=(stop_event,), daemon=True)
+    mqtt = MQTTManager()
+    mqtt.connect_local()
+    heartbeat_thread = threading.Thread(target=mqtt.send_camera_heartbeat, args=(stop_event,))
     heartbeat_thread.start()
 
     event = threading.Event()
@@ -112,7 +140,6 @@ def run_camera():
         try:
             disp.display_msg('Imaging!', img_count)
 
-            event.set()
             time_current = datetime.now()
             time_current_split = str(time_current.strftime("%Y%m%d_%H%M%S"))
             
@@ -122,14 +149,13 @@ def run_camera():
             capture_thread.join(timeout=3) 
             if capture_thread.is_alive(): # If thread is still alive after 3 seconds, it's probably hung
                 raise TimeoutError("Camera operation took too long!")
-            event.clear()
             
             img_count += 1
             retry_count = 0
         
             # if wanting a delay in saving sensor data:
             if (time.time()-curr_time) >= 30:
-                sensors.append_to_csv()
+                sensors.insert_into_db()
                 curr_time = time.time()
             sleep(.7)
 
@@ -138,20 +164,21 @@ def run_camera():
             sensor_thread.join() 
 
             if len(list(sensors.data_dict.values())[0]) != 0: # if list is not empty then add data
-                sensors.append_to_csv()
+                sensors.insert_into_db()
             
             disp.display_msg('Interrupted', img_count)
-            logging.info("KeyboardInterrupt")
+            logger.info("KeyboardInterrupt")
             cleanup()
             sys.exit()
 
         except TimeoutError:
             retry_count += 1
             disp.display_msg('Cam Timeout!', img_count)
-            logging.error("Camera operation timeout!")
+            logger.error("Camera operation timeout!")
             if retry_count >= MAX_RETRIES:
+                send_local_alert(mqtt, "Camera timeout error")
                 disp.display_msg('Max retries reached!', img_count)
-                logging.error("Max retries reached. Exiting...")
+                logger.error("Max retries reached. Exiting...")
                 sys.exit()
             else:
                 sleep(2) # Wait for a bit before attempting a retry
@@ -159,7 +186,8 @@ def run_camera():
 
         except Exception as e:
             disp.display_msg('Error', img_count)
-            logging.exception("Error capturing image: %s", str(e))
+            logger.exception("Error capturing image: %s", str(e))
+            send_local_alert(mqtt, str(e))
             cleanup()
             sys.exit()
 

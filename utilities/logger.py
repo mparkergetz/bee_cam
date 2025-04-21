@@ -6,7 +6,7 @@ from utilities.config import Config
 config = Config()
 log_level = config['general']['log_level']
 
-logger = logging.getLogger("global_logger")
+logger = logging.getLogger("Main")
 logger.setLevel(getattr(logging, log_level, logging.INFO))
 
 if not logger.handlers: # avoids duplicate handlers

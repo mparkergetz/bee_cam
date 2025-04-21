@@ -1,0 +1,14 @@
+[Unit]
+Description=PPP0 Auto Reconnect Monitor
+After=network.target dev-serial0.device
+Requires=dev-serial0.device
+
+[Service]
+ExecStart=/usr/bin/python3 /home/pi/bee_cam/setup/server/init_modem.py
+Restart=always
+RestartSec=5
+StandardOutput=/home/pi/bee_cam/setup/stdout_modem.txt
+StandardError=/home/pi/bee_cam/setup/err_modem.txt
+
+[Install]
+WantedBy=multi-user.target

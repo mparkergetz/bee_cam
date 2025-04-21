@@ -1,38 +1,40 @@
-### LOCATIONS
-## WILLOW CREEK 40.93615, -123.64406
-## 
-
-import subprocess
 import sys
-
-def install_and_import(package, import_as=None):
-    try:
-        if import_as:
-            globals()[import_as] = __import__(package)
-        else:
-            __import__(package)
-    except ImportError:
-        print(f"Installing {package}...")
-        subprocess.check_call([sys.executable, "-m", "pip", "install", package])
-        if import_as:
-            globals()[import_as] = __import__(package)
-
-install_and_import("pandas")
-install_and_import("astral")
-
 from datetime import date, timedelta
 import pandas as pd
 from astral import LocationInfo
 from astral.sun import sun
 
-latitude = 40.93615
-longitude = -123.64406
-timezone = 'US/Pacific'     
+locations = {
+    "talking_trees": {
+        "latitude": 40.93615,
+        "longitude": -123.64406,
+        "timezone": "US/Pacific"
+    },
+    "sunrise_mountain": {
+        "latitude": 40.94774,
+        "longitude": -123.68905,
+        "timezone": "US/Pacific"
+    },
+    "emerald_queen": {
+        "latitude": 40.89297,
+        "longitude": -123.64952,
+        "timezone": "US/Pacific"
+    }
+}
+
+if len(sys.argv) != 2 or sys.argv[1] not in locations:
+    print("Usage: python3 generate_sunrise_sunset_times.py [talking_trees|sunrise_mountain|emerald_queen]")
+    sys.exit(1)
+
+loc = locations[sys.argv[1]]
+latitude = loc["latitude"]
+longitude = loc["longitude"]
+timezone = loc["timezone"]
 
 start_date = date.today()
 end_date = start_date + timedelta(days=365)
 
-location = LocationInfo(name="Custom Location", region="Custom", timezone=timezone,
+location = LocationInfo(name=sys.argv[1], region="Custom", timezone=timezone,
                         latitude=latitude, longitude=longitude)
 
 current = start_date
@@ -50,4 +52,4 @@ while current <= end_date:
 df = pd.DataFrame(data)
 df.to_csv("sun_times.csv", index=False)
 
-print('sun_times.csv: 1 year of times generated')
+print(f'sun_times.csv: 1 year of times generated for {sys.argv[1]}')

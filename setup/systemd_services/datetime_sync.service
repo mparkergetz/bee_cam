@@ -6,7 +6,7 @@ Before=bee_cam.service
 
 [Service]
 Type=simple
-ExecStart=/home/pi/time_init.sh
+ExecStart=/home/pi/bee_cam/setup/time_init.sh
 RemainAfterExit=true
 
 [Install]

@@ -1,0 +1,11 @@
+/dev/serial0
+9600
+crtscts
+noauth
+defaultroute
+replacedefaultroute
+usepeerdns
+connect "/usr/sbin/chat -v -f /etc/chatscripts/sim7080g"
+persist
+maxfail 0
+holdoff 5
