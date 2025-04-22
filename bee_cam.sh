@@ -150,29 +150,29 @@ EOF
             mkdir -p "$focus_dir"
 
             sudo -u pi -E python3 - <<EOF
-            from picamera2 import Picamera2
-            from datetime import datetime
-            import time
-            import os
+from picamera2 import Picamera2
+from datetime import datetime
+import time
+import os
 
-            cam = Picamera2()
-            cam.configure(cam.create_still_configuration())
-            cam.start()
+cam = Picamera2()
+cam.configure(cam.create_still_configuration())
+cam.start()
 
-            lens_positions = [i * 0.1 for i in range(10)]
+lens_positions = [i * 0.1 for i in range(10)]
 
-            save_dir = "${focus_dir}"
+save_dir = "${focus_dir}"
 
-            for i, pos in enumerate(lens_positions):
-                filename = os.path.join(save_dir, f"focus_{i}_pos{pos:.1f}.jpg")
-                cam.set_controls({"LensPosition": pos})
-                time.sleep(0.5)
-                cam.capture_file(filename)
-                print(f"Saved: {filename}")
-                time.sleep(0.5)
+for i, pos in enumerate(lens_positions):
+    filename = os.path.join(save_dir, f"focus_{i}_pos{pos:.1f}.jpg")
+    cam.set_controls({"LensPosition": pos})
+    time.sleep(0.5)
+    cam.capture_file(filename)
+    print(f"Saved: {filename}")
+    time.sleep(0.5)
 
-            cam.close()
-            EOF
+cam.close()
+EOF
 
             echo ""
             echo "Press [Enter] to view images one at a time. Close the image window each time to continue."
