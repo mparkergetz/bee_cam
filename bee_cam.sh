@@ -143,36 +143,57 @@ EOF
         rm -rf "$focus_dir"
 
         else
-            echo "Detected local session. Capturing and saving images only."
+            echo "Detected local session. Running interactive focus test..."
+
+            timestamp=$(date +%Y%m%d_%H%M%S)
+            focus_dir="/tmp/focus_test_${timestamp}"
+            mkdir -p "$focus_dir"
 
             sudo -u pi -E python3 - <<EOF
-from picamera2 import Picamera2
-from datetime import datetime
-import time
-import os
+            from picamera2 import Picamera2
+            from datetime import datetime
+            import time
+            import os
 
-cam = Picamera2()
-cam.configure(cam.create_still_configuration())
-cam.start()
+            cam = Picamera2()
+            cam.configure(cam.create_still_configuration())
+            cam.start()
 
-lens_positions = [i * 0.1 for i in range(10)]
+            lens_positions = [i * 0.1 for i in range(10)]
 
-for i, pos in enumerate(lens_positions):
-    filename = f"/tmp/focus_test_{i}_pos{pos:.1f}.jpg"
-    cam.set_controls({"LensPosition": pos})
-    time.sleep(0.5)
-    cam.capture_file(filename)
-    print(f"Saved locally: {filename}")
-    time.sleep(0.5)
+            save_dir = "${focus_dir}"
 
-cam.close()
-EOF
-        fi
+            for i, pos in enumerate(lens_positions):
+                filename = os.path.join(save_dir, f"focus_{i}_pos{pos:.1f}.jpg")
+                cam.set_controls({"LensPosition": pos})
+                time.sleep(0.5)
+                cam.capture_file(filename)
+                print(f"Saved: {filename}")
+                time.sleep(0.5)
 
-        echo "Restarting bee_cam.service..."
-        sudo systemctl start bee_cam.service
-        echo "bee_cam.service restarted."
-        ;;
+            cam.close()
+            EOF
+
+            echo ""
+            echo "Press [Enter] to view images one at a time. Close the image window each time to continue."
+            read -p "Start review? " _
+
+            if command -v feh &> /dev/null; then
+                echo "Opening interactive image viewer (use ← → arrows to navigate, Q to quit)..."
+                feh --auto-zoom --scale-down --title "Focus Test: %f" "$focus_dir"
+            else
+                echo "No image viewer found (feh or xdg-open). Install feh with: sudo apt install feh"
+            fi
+
+            echo ""
+            read -p "Delete temporary focus images? [Y/n]: " delete_confirm
+            if [[ "$delete_confirm" =~ ^[Yy]$ || -z "$delete_confirm" ]]; then
+                rm -rf "$focus_dir"
+                echo "Focus test images deleted."
+            else
+                echo "Images kept at: $focus_dir"
+            fi
+
 
 
 
