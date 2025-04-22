@@ -29,12 +29,15 @@ from picamera2 import Picamera2
 from datetime import datetime
 import sys
 
+width, height = 2304, 1296
+size = (width, height)
+
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 filename = f"/tmp/test_capture_{timestamp}.jpg"
 
 try:
     cam = Picamera2()
-    cam.configure(cam.create_still_configuration())
+    config = cam.create_still_configuration(main={"size": size})
     cam.start()
     cam.capture_file(filename)
     cam.close()
@@ -65,8 +68,12 @@ EOF
 from picamera2 import Picamera2, Preview
 import time
 
+width, height = 2304, 1296
+size = (width, height)
+
 try:
     cam = Picamera2()
+    config = cam.create_preview_configuration(main={"size": size})
     cam.start_preview(Preview.DRM)
     cam.start()
     print("Preview running. Press Ctrl+C to exit.")
@@ -134,7 +141,7 @@ EOF
 
         else
             echo "Detected local session. Run via ssh for best results"
-
+        fi
 #             timestamp=$(date +%Y%m%d_%H%M%S)
 #             focus_dir="/tmp/focus_test_${timestamp}"
 #             mkdir -p "$focus_dir"
