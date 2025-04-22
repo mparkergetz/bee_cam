@@ -97,6 +97,9 @@ EOF
             host=$(echo "$SSH_CONNECTION" | awk '{print $1}')
             dest_dir="/home/${user}/Downloads"
 
+            focus_dir="/tmp/focus_test_$(date +%Y%m%d_%H%M%S)"
+            mkdir -p "$focus_dir"
+
             sudo -u pi -E python3 - <<EOF
 from picamera2 import Picamera2
 from datetime import datetime
@@ -108,39 +111,26 @@ cam.configure(cam.create_still_configuration())
 cam.start()
 
 lens_positions = [i * 0.1 for i in range(10)]
-output_files = []
+save_dir = "${focus_dir}"
 
 for i, pos in enumerate(lens_positions):
-    filename = f"/tmp/focus_test_{i}_pos{pos:.1f}.jpg"
+    filename = os.path.join(save_dir, f"focus_{i}_pos{pos:.1f}.jpg")
     cam.set_controls({"LensPosition": pos})
     time.sleep(0.5)
     cam.capture_file(filename)
-    output_files.append(filename)
-    print(f"Captured {filename}")
+    print(f"📸 Captured: {filename}")
     time.sleep(0.5)
 
 cam.close()
-
-with open("/tmp/focus_test_files.txt", "w") as f:
-    for file in output_files:
-        f.write(file + "\\n")
 EOF
 
-        echo "Sending focus test images..."
+            echo "Transferring ${focus_dir} to ${user}@${host}:${dest_dir}..."
+            scp -r "$focus_dir/" "${user}@${host}:${dest_dir}" \
+                && echo "Focus images sent." \
+                || echo "Transfer failed."
 
-        focus_dir="/tmp/focus_test_$(date +%Y%m%d_%H%M%S)"
-        mkdir -p "$focus_dir"
-
-        while read file; do
-           mv "$file" "$focus_dir/"
-        done < /tmp/focus_test_files.txt
-
-        echo "Transferring ${focus_dir} to ${user}@${host}:${dest_dir}..."
-        scp -r "$focus_dir/" "${user}@${host}:${dest_dir}" \
-            && echo "Focus images sent." \
-            || echo "Transfer failed."
-
-        rm -rf "$focus_dir"
+            # Optional cleanup
+            rm -rf "$focus_dir"
 
         else
             echo "Detected local session. Running interactive focus test..."
@@ -160,7 +150,6 @@ cam.configure(cam.create_still_configuration())
 cam.start()
 
 lens_positions = [i * 0.1 for i in range(10)]
-
 save_dir = "${focus_dir}"
 
 for i, pos in enumerate(lens_positions):
@@ -175,14 +164,13 @@ cam.close()
 EOF
 
             echo ""
-            echo "Press [Enter] to view images one at a time. Close the image window each time to continue."
-            read -p "Start review? " _
+            read -p "Press [Enter] to view images using interactive viewer..."
 
             if command -v feh &> /dev/null; then
-                echo "Opening interactive image viewer (use ← → arrows to navigate, Q to quit)..."
+                echo "Opening viewer — use ← → to navigate, Q to quit"
                 feh --auto-zoom --scale-down --title "Focus Test: %f" "$focus_dir"
             else
-                echo "No image viewer found (feh or xdg-open). Install feh with: sudo apt install feh"
+                echo "No image viewer found (feh). Install it with: sudo apt install feh"
             fi
 
             echo ""
@@ -193,8 +181,12 @@ EOF
             else
                 echo "Images kept at: $focus_dir"
             fi
+        fi
 
-
+        echo "Restarting bee_cam.service..."
+        sudo systemctl start bee_cam.service
+        echo "bee_cam.service restarted."
+        ;;
 
 
     3)
