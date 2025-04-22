@@ -133,55 +133,55 @@ EOF
             rm -rf "$focus_dir"
 
         else
-            echo "Detected local session. Running interactive focus test..."
+            echo "Detected local session. Run via ssh for best results"
 
-            timestamp=$(date +%Y%m%d_%H%M%S)
-            focus_dir="/tmp/focus_test_${timestamp}"
-            mkdir -p "$focus_dir"
+#             timestamp=$(date +%Y%m%d_%H%M%S)
+#             focus_dir="/tmp/focus_test_${timestamp}"
+#             mkdir -p "$focus_dir"
 
-            sudo -u pi -E python3 - <<EOF
-from picamera2 import Picamera2
-from datetime import datetime
-import time
-import os
+#             sudo -u pi -E python3 - <<EOF
+# from picamera2 import Picamera2
+# from datetime import datetime
+# import time
+# import os
 
-cam = Picamera2()
-cam.configure(cam.create_still_configuration())
-cam.start()
+# cam = Picamera2()
+# cam.configure(cam.create_still_configuration())
+# cam.start()
 
-lens_positions = [i * 0.1 for i in range(10)]
-save_dir = "${focus_dir}"
+# lens_positions = [i * 0.1 for i in range(10)]
+# save_dir = "${focus_dir}"
 
-for i, pos in enumerate(lens_positions):
-    filename = os.path.join(save_dir, f"focus_{i}_pos{pos:.1f}.jpg")
-    cam.set_controls({"LensPosition": pos})
-    time.sleep(0.5)
-    cam.capture_file(filename)
-    print(f"Saved: {filename}")
-    time.sleep(0.5)
+# for i, pos in enumerate(lens_positions):
+#     filename = os.path.join(save_dir, f"focus_{i}_pos{pos:.1f}.jpg")
+#     cam.set_controls({"LensPosition": pos})
+#     time.sleep(0.5)
+#     cam.capture_file(filename)
+#     print(f"Saved: {filename}")
+#     time.sleep(0.5)
 
-cam.close()
-EOF
+# cam.close()
+# EOF
 
-            echo ""
-            read -p "Press [Enter] to view images using interactive viewer..."
+#             echo ""
+#             read -p "Press [Enter] to view images using interactive viewer..."
 
-            if command -v feh &> /dev/null; then
-                echo "Opening viewer — use ← → to navigate, Q to quit"
-                feh --auto-zoom --scale-down --title "Focus Test: %f" "$focus_dir"
-            else
-                echo "No image viewer found (feh). Install it with: sudo apt install feh"
-            fi
+#             if command -v feh &> /dev/null; then
+#                 echo "Opening viewer — use ← → to navigate, Q to quit"
+#                 feh --auto-zoom --scale-down --title "Focus Test: %f" "$focus_dir"
+#             else
+#                 echo "No image viewer found (feh). Install it with: sudo apt install feh"
+#             fi
 
-            echo ""
-            read -p "Delete temporary focus images? [Y/n]: " delete_confirm
-            if [[ "$delete_confirm" =~ ^[Yy]$ || -z "$delete_confirm" ]]; then
-                rm -rf "$focus_dir"
-                echo "Focus test images deleted."
-            else
-                echo "Images kept at: $focus_dir"
-            fi
-        fi
+#             echo ""
+#             read -p "Delete temporary focus images? [Y/n]: " delete_confirm
+#             if [[ "$delete_confirm" =~ ^[Yy]$ || -z "$delete_confirm" ]]; then
+#                 rm -rf "$focus_dir"
+#                 echo "Focus test images deleted."
+#             else
+#                 echo "Images kept at: $focus_dir"
+#             fi
+#         fi
 
         echo "Restarting bee_cam.service..."
         sudo systemctl start bee_cam.service
