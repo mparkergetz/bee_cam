@@ -122,6 +122,9 @@ else
   echo ">>> Configuring as CAMERA (node)"
   cp "$BASE_DIR/node/config_camera.txt" /boot/config.txt
   cp "$BASE_DIR/node/wpa_supplicant.conf" /etc/wpa_supplicant/wpa_supplicant.conf
+
+  echo ">>> IT'S THE FBI"
+  apt install -y fbi
 fi
 
 echo ">>> Enabling I2C kernel modules"
