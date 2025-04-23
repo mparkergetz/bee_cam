@@ -125,6 +125,7 @@ else
 
   echo ">>> IT'S THE FBI"
   apt install -y fbi
+  apt install -y feh
 fi
 
 echo ">>> Enabling I2C kernel modules"
