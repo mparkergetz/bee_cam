@@ -24,28 +24,28 @@ echo "$UNIT_NAME" > /etc/hostname
 sed -i "s/127.0.1.1.*/127.0.1.1\t$UNIT_NAME/" /etc/hosts
 hostnamectl set-hostname "$UNIT_NAME"
 
-read -rp "Set location: tt (Talking Trees), sm (Sunrise Mountain), eq (Emerald Queen), or none: " LOCATION_SHORT
-LOCATION_SHORT=$(echo "$LOCATION_SHORT" | tr '[:upper:]' '[:lower:]')
+# read -rp "Set location: tt (Talking Trees), sm (Sunrise Mountain), eq (Emerald Queen), or none: " LOCATION_SHORT
+# LOCATION_SHORT=$(echo "$LOCATION_SHORT" | tr '[:upper:]' '[:lower:]')
 
-case "$LOCATION_SHORT" in
-  tt)
-    LOCATION="talking_trees"
-    ;;
-  sm)
-    LOCATION="sunrise_mountain"
-    ;;
-  eq)
-    LOCATION="emerald_queen"
-    ;;
-  none)
-    LOCATION="none"
-    ;;
-  *)
-    echo "Invalid location code: $LOCATION_SHORT"
-    echo "Location code options: [tt/sm/eq/none]"
-    exit 1
-    ;;
-esac
+# case "$LOCATION_SHORT" in
+#   tt)
+#     LOCATION="talking_trees"
+#     ;;
+#   sm)
+#     LOCATION="sunrise_mountain"
+#     ;;
+#   eq)
+#     LOCATION="emerald_queen"
+#     ;;
+#   none)
+#     LOCATION="none"
+#     ;;
+#   *)
+#     echo "Invalid location code: $LOCATION_SHORT"
+#     echo "Location code options: [tt/sm/eq/none]"
+#     exit 1
+#     ;;
+# esac
 
 echo ">>> Updating system and installing dependencies"
 apt update
@@ -173,11 +173,11 @@ else
 fi
 chown pi:pi "$CONFIG_TARGET"
 
-if [[ "$LOCATION" != "none" ]]; then
-  echo ">>> Generating sunrise/sunset times for $LOCATION..."
-  python3 "$BASE_DIR/generate_sunrise_sunset_times.py" "$LOCATION"
-else
-  echo ">>> Skipping sunrise/sunset generation (no location selected)."
-fi
+# if [[ "$LOCATION" != "none" ]]; then
+#   echo ">>> Generating sunrise/sunset times for $LOCATION..."
+#   python3 "$BASE_DIR/generate_sunrise_sunset_times.py" "$LOCATION"
+# else
+#   echo ">>> Skipping sunrise/sunset generation (no location selected)."
+# fi
 
 echo ">>> Done. Please reboot!"
