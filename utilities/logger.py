@@ -11,7 +11,7 @@ logger.setLevel(getattr(logging, log_level, logging.INFO))
 
 if not logger.handlers: # avoids duplicate handlers
     package_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-    log_dir = os.path.join(package_root, "logs")
+    log_dir = os.path.join(package_root, "data")
     os.makedirs(log_dir, exist_ok=True)
 
     log_file = os.path.join(log_dir, "system.log")
